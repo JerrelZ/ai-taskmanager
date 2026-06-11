@@ -1,0 +1,98 @@
+@import 'tailwindcss';
+@import '../../vendor/livewire/flux/dist/flux.css';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../vendor/livewire/flux-pro/stubs/**/*.blade.php';
+@source '../../vendor/livewire/flux/stubs/**/*.blade.php';
+
+/* Safelist dynamic project/label/priority/status colors used via interpolation. */
+@source inline("{bg,text,border}-{zinc,red,orange,amber,green,blue,indigo,purple,pink,brand}-{400,500,600}");
+@source inline("dark:{bg,text,border}-{zinc,red,orange,amber,green,blue,indigo,purple,pink,brand}-{400,500}");
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-serif: 'Fraunces', ui-serif, Georgia, Cambria, 'Times New Roman', serif;
+
+    /* Warm "paper & ink" neutral scale — editorial, not cold zinc. */
+    --color-zinc-50: #f8f6f1;
+    --color-zinc-100: #f1ede5;
+    --color-zinc-200: #e6e1d6;
+    --color-zinc-300: #d4cdbf;
+    --color-zinc-400: #a8a092;
+    --color-zinc-500: #797164;
+    --color-zinc-600: #5b5447;
+    --color-zinc-700: #454036;
+    --color-zinc-800: #2b2823;
+    --color-zinc-900: #1d1b17;
+    --color-zinc-950: #14120f;
+
+    /* Brand accent — single signature colour (violet). Change this scale to rebrand. */
+    --color-brand-50: #f5f3ff;
+    --color-brand-100: #ede9fe;
+    --color-brand-200: #ddd6fe;
+    --color-brand-300: #c4b5fd;
+    --color-brand-400: #a78bfa;
+    --color-brand-500: #8b5cf6;
+    --color-brand-600: #7c3aed;
+    --color-brand-700: #6d28d9;
+    --color-brand-800: #5b21b6;
+    --color-brand-900: #4c1d95;
+    --color-brand-950: #2e1065;
+
+    /* Flux primitives follow the brand accent automatically. */
+    --color-accent: var(--color-brand-600);
+    --color-accent-content: var(--color-brand-700);
+    --color-accent-foreground: var(--color-white);
+}
+
+@layer theme {
+    .dark {
+        --color-accent: var(--color-brand-500);
+        --color-accent-content: var(--color-brand-400);
+        --color-accent-foreground: var(--color-white);
+    }
+}
+
+@layer base {
+
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentColor);
+    }
+
+    html {
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+    }
+}
+
+/* Editorial display headings — large serif with tight tracking. */
+.font-display {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+}
+
+[data-flux-field]:not(ui-radio, ui-checkbox) {
+    @apply grid gap-2;
+}
+
+[data-flux-label] {
+    @apply  !mb-0 !leading-tight;
+}
+
+input:focus[data-flux-control],
+textarea:focus[data-flux-control],
+select:focus[data-flux-control] {
+    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
+}
+
+/* \[:where(&)\]:size-4 {
+    @apply size-4;
+} */

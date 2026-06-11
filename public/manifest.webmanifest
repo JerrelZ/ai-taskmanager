@@ -1,0 +1,24 @@
+{
+    "name": "Tasks",
+    "short_name": "Tasks",
+    "description": "Command center voor je projecten, tickets en berichten.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#f8f6f1",
+    "theme_color": "#7c3aed",
+    "icons": [
+        {
+            "src": "/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "/apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
