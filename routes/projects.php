@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Clients\Index as ClientsIndex;
+use App\Livewire\Email\Inbox as EmailInbox;
 use App\Livewire\Messages\Index as MessagesIndex;
 use App\Livewire\Projects\Board;
 use App\Livewire\Projects\Index;
@@ -13,6 +14,7 @@ Route::middleware(['auth'])->group(function () {
     Route::livewire('messages', MessagesIndex::class)->name('messages.index');
     Route::livewire('projects', Index::class)->name('projects.index');
     Route::livewire('projects/{project}', Board::class)->name('projects.board');
+    Route::livewire('projects/{project}/inbox', EmailInbox::class)->name('projects.inbox');
 
     // Admin-only management.
     Route::livewire('clients', ClientsIndex::class)->name('clients.index');

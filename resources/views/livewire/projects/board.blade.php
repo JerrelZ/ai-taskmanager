@@ -7,6 +7,7 @@
                 <span class="size-3 rounded-full bg-{{ $project->color }}-500"></span>
                 <h1 class="font-display text-2xl leading-none text-zinc-900 dark:text-zinc-50">{{ $project->name }}</h1>
                 <flux:button wire:click="openProjectSettings" variant="subtle" size="sm" icon="cog-6-tooth" inset="top bottom" />
+                <flux:button :href="route('projects.inbox', $project)" wire:navigate variant="subtle" size="sm" icon="inbox" inset="top bottom">{{ __('Inbox') }}</flux:button>
             </div>
 
             <flux:radio.group wire:model.live="boardView" variant="segmented" size="sm">
