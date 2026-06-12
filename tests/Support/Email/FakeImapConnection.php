@@ -3,6 +3,7 @@
 namespace Tests\Support\Email;
 
 use App\Services\Email\ImapConnection;
+use Carbon\CarbonInterface;
 
 /**
  * In-memory IMAP session for tests. Lets a test seed folders with UID/raw pairs,
@@ -12,6 +13,14 @@ class FakeImapConnection implements ImapConnection
 {
     /** @var array<string, array{uidvalidity: int, messages: array<int, string>}> */
     public array $folders = [];
+
+    /**
+     * Optional server-side received date per folder+UID, used to emulate the
+     * SINCE filter. Missing entries are treated as always matching.
+     *
+     * @var array<string, array<int, CarbonInterface>>
+     */
+    public array $dates = [];
 
     /** @var array<int, array{folder: string, raw: string}> */
     public array $appended = [];
@@ -26,11 +35,15 @@ class FakeImapConnection implements ImapConnection
 
     private ?string $current = null;
 
-    public function seed(string $folder, int $uid, string $raw, int $uidValidity = 1): self
+    public function seed(string $folder, int $uid, string $raw, int $uidValidity = 1, ?CarbonInterface $receivedAt = null): self
     {
         $this->folders[$folder] ??= ['uidvalidity' => $uidValidity, 'messages' => []];
         $this->folders[$folder]['uidvalidity'] = $uidValidity;
         $this->folders[$folder]['messages'][$uid] = $raw;
+
+        if ($receivedAt !== null) {
+            $this->dates[$folder][$uid] = $receivedAt;
+        }
 
         return $this;
     }
@@ -51,10 +64,23 @@ class FakeImapConnection implements ImapConnection
         return $this->folders[$folder]['uidvalidity'];
     }
 
-    public function fetchUidsGreaterThan(int $uid): array
+    public function fetchUidsGreaterThan(int $uid, ?CarbonInterface $since = null): array
     {
+        $folder = $this->current;
         $uids = array_keys($this->currentFolder()['messages']);
-        $uids = array_values(array_filter($uids, fn (int $candidate): bool => $candidate > $uid));
+        $uids = array_values(array_filter($uids, function (int $candidate) use ($uid, $since, $folder): bool {
+            if ($candidate <= $uid) {
+                return false;
+            }
+
+            if ($since === null) {
+                return true;
+            }
+
+            $receivedAt = $this->dates[$folder][$candidate] ?? null;
+
+            return $receivedAt === null || $receivedAt->gte($since);
+        }));
         sort($uids);
 
         return $uids;

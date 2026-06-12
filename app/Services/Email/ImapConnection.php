@@ -2,6 +2,8 @@
 
 namespace App\Services\Email;
 
+use Carbon\CarbonInterface;
+
 /**
  * A read-only IMAP session opened for a single account.
  *
@@ -18,9 +20,12 @@ interface ImapConnection
     /**
      * UIDs in the currently selected folder strictly greater than $uid, ascending.
      *
+     * When $since is given, only messages received on or after that date are
+     * returned. This bounds the initial backfill to a recent window.
+     *
      * @return array<int, int>
      */
-    public function fetchUidsGreaterThan(int $uid): array;
+    public function fetchUidsGreaterThan(int $uid, ?CarbonInterface $since = null): array;
 
     /**
      * The raw RFC822 source of a single message by UID in the selected folder.

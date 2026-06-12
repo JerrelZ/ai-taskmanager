@@ -94,6 +94,27 @@ it('appends the sent reply to the IMAP Sent folder', function () {
     expect($appended[0]['folder'])->toBe('Sent');
 });
 
+it('logs the reply and skips the IMAP Sent append in log-only mode', function () {
+    Mail::fake();
+    config()->set('services.email.log_only', true);
+
+    [$thread] = inboundThread($this->account);
+
+    Livewire::test(Inbox::class, ['project' => $this->project])
+        ->call('selectThread', $thread->id)
+        ->set('replyBody', 'Test in log-only modus.')
+        ->call('sendReply')
+        ->assertHasNoErrors();
+
+    // The outbound message is still recorded locally...
+    expect(EmailMessage::where('email_account_id', $this->account->id)
+        ->where('direction', EmailMessage::DIRECTION_OUTBOUND)
+        ->count())->toBe(1);
+
+    // ...but nothing is appended to the real mailbox.
+    expect($this->fakeImap->for($this->account)->appended)->toHaveCount(0);
+});
+
 it('does not duplicate the outbound message when the Sent folder is later synced', function () {
     Mail::fake();
 
@@ -131,6 +152,23 @@ it('creates an encrypted email account from the settings form', function () {
 
     $raw = DB::table('email_accounts')->where('id', $account->id)->value('password');
     expect($raw)->not->toContain('geheim-app-wachtwoord');
+});
+
+it('stores the configured sync window in days', function () {
+    $project = Project::factory()->create();
+
+    Livewire::test(Inbox::class, ['project' => $project])
+        ->call('openSettings')
+        ->set('emailAddress', 'support@bedrijf.nl')
+        ->set('imapHost', 'imap.bedrijf.nl')
+        ->set('smtpHost', 'smtp.bedrijf.nl')
+        ->set('username', 'support@bedrijf.nl')
+        ->set('accountPassword', 'geheim')
+        ->set('syncDays', 14)
+        ->call('saveAccount')
+        ->assertHasNoErrors();
+
+    expect(EmailAccount::where('project_id', $project->id)->value('sync_days'))->toBe(14);
 });
 
 it('keeps the existing password when the field is left blank on edit', function () {

@@ -55,6 +55,8 @@ class Inbox extends Component
 
     public string $accountPassword = '';
 
+    public ?int $syncDays = 30;
+
     public function mount(Project $project): void
     {
         $user = Auth::user();
@@ -189,6 +191,7 @@ class Inbox extends Component
             'smtpPort' => 'required|integer',
             'username' => 'required|string',
             'accountPassword' => 'nullable|string',
+            'syncDays' => 'nullable|integer|min:1|max:3650',
         ]);
 
         $existing = $this->account();
@@ -202,6 +205,7 @@ class Inbox extends Component
             'smtp_port' => $validated['smtpPort'],
             'smtp_encryption' => $this->smtpEncryption,
             'username' => $validated['username'],
+            'sync_days' => $validated['syncDays'],
         ];
 
         // Only overwrite the stored password when a new one is entered.
@@ -262,6 +266,7 @@ class Inbox extends Component
         $this->smtpPort = $account->smtp_port;
         $this->smtpEncryption = $account->smtp_encryption;
         $this->username = $account->username;
+        $this->syncDays = $account->sync_days;
     }
 
     public function render()

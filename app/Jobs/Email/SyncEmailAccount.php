@@ -109,7 +109,13 @@ class SyncEmailAccount implements ShouldQueue
             $folder->forceFill(['uid_validity' => $uidValidity, 'last_seen_uid' => 0])->save();
         }
 
-        foreach ($connection->fetchUidsGreaterThan($folder->last_seen_uid) as $uid) {
+        // Bound the very first backfill of a folder to the account's configured
+        // window. Once a watermark exists, every later UID is fetched regardless.
+        $since = ($folder->last_seen_uid === 0 && $account->sync_days !== null)
+            ? now()->subDays($account->sync_days)->startOfDay()
+            : null;
+
+        foreach ($connection->fetchUidsGreaterThan($folder->last_seen_uid, $since) as $uid) {
             $raw = $connection->fetchRaw($uid);
             $this->ingestOne($account, $store, $folder, $uid, $raw);
         }

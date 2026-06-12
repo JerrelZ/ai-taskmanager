@@ -23,8 +23,14 @@ return [
     ],
 
     'anthropic' => [
-        'key' => env('ANTHROPIC_API_KEY'),
+        'key' => env('ANTHROPIC_API_KEY', env('CLAUDE_API_KEY')),
         'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-4-6'),
+    ],
+
+    'email' => [
+        // When true, replies are written to the Laravel log instead of being
+        // sent over SMTP (and the IMAP "Sent" append is skipped). For testing.
+        'log_only' => env('EMAIL_LOG_ONLY', false),
     ],
 
     'ses' => [

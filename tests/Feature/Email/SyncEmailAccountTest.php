@@ -126,6 +126,41 @@ it('never loses email when a sync crashes mid-folder', function () {
     expect($folder->last_seen_uid)->toBe(3);
 });
 
+it('only backfills messages within the configured sync window on the first sync', function () {
+    Bus::fake([ParseEmailMessage::class]);
+
+    $account = EmailAccount::factory()->create(['sync_days' => 7]);
+    $this->fakeImap->for($account)
+        ->seed('INBOX', 1, rawEmail('<old@example.com>'), receivedAt: now()->subDays(30))
+        ->seed('INBOX', 2, rawEmail('<recent@example.com>'), receivedAt: now()->subDays(2));
+
+    runSync($account);
+
+    $messages = EmailMessage::where('email_account_id', $account->id)->get();
+    expect($messages)->toHaveCount(1);
+    expect($messages->first()->uid)->toBe(2);
+
+    // The pre-window message stays below the watermark and is never re-fetched.
+    $folder = EmailFolder::where('email_account_id', $account->id)->where('name', 'INBOX')->first();
+    expect($folder->last_seen_uid)->toBe(2);
+});
+
+it('ignores the sync window once a watermark exists', function () {
+    Bus::fake([ParseEmailMessage::class]);
+
+    $account = EmailAccount::factory()->create(['sync_days' => 7]);
+    $connection = $this->fakeImap->for($account)
+        ->seed('INBOX', 1, rawEmail('<recent@example.com>'), receivedAt: now()->subDays(2));
+
+    runSync($account);
+
+    // A later message dated before the window must still arrive on subsequent syncs.
+    $connection->seed('INBOX', 2, rawEmail('<replyolddate@example.com>'), receivedAt: now()->subDays(30));
+    runSync($account);
+
+    expect(EmailMessage::where('email_account_id', $account->id)->count())->toBe(2);
+});
+
 it('handles a UIDVALIDITY change with a full resync and no duplicates', function () {
     Bus::fake([ParseEmailMessage::class]);
 

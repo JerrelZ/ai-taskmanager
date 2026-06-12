@@ -97,15 +97,20 @@ class EmailSender
     {
         $mailer = "email_acct_{$account->id}";
 
-        Config::set("mail.mailers.{$mailer}", [
-            'transport' => 'smtp',
-            'host' => $account->smtp_host,
-            'port' => $account->smtp_port,
-            'encryption' => $account->smtp_encryption === 'none' ? null : $account->smtp_encryption,
-            'username' => $account->username,
-            'password' => $account->password,
-            'timeout' => 15,
-        ]);
+        // Testing escape hatch: write the reply to the log instead of sending it.
+        if (Config::get('services.email.log_only')) {
+            $mailer = 'log';
+        } else {
+            Config::set("mail.mailers.{$mailer}", [
+                'transport' => 'smtp',
+                'host' => $account->smtp_host,
+                'port' => $account->smtp_port,
+                'encryption' => $account->smtp_encryption === 'none' ? null : $account->smtp_encryption,
+                'username' => $account->username,
+                'password' => $account->password,
+                'timeout' => 15,
+            ]);
+        }
 
         Mail::mailer($mailer)->send(new EmailReply(
             fromAddress: $account->email_address,
@@ -120,6 +125,11 @@ class EmailSender
 
     private function appendToSent(EmailAccount $account, EmailMessage $outbound): void
     {
+        // In log-only testing mode we never touch the real mailbox.
+        if (Config::get('services.email.log_only')) {
+            return;
+        }
+
         try {
             $raw = $this->store->get($outbound->raw_path);
             $connection = $this->imap->connect($account);

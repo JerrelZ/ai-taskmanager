@@ -33,6 +33,7 @@ class EmailAccountFactory extends Factory
             'password' => 'app-password',
             'external_db_dsn' => null,
             'is_active' => true,
+            'sync_days' => null,
             'last_sync_at' => null,
             'last_sync_error' => null,
         ];

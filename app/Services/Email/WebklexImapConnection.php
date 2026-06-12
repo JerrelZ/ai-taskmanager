@@ -2,6 +2,7 @@
 
 namespace App\Services\Email;
 
+use Carbon\CarbonInterface;
 use Webklex\PHPIMAP\Client;
 use Webklex\PHPIMAP\Folder;
 use Webklex\PHPIMAP\Query\WhereQuery;
@@ -28,14 +29,19 @@ class WebklexImapConnection implements ImapConnection
         return (int) ($status['uidvalidity'] ?? 0);
     }
 
-    public function fetchUidsGreaterThan(int $uid): array
+    public function fetchUidsGreaterThan(int $uid, ?CarbonInterface $since = null): array
     {
-        $messages = $this->query()
+        $query = $this->query()
             ->leaveUnread()
             ->setFetchBody(false)
             ->setFetchFlags(false)
-            ->whereUid(($uid + 1).':*')
-            ->get();
+            ->whereUid(($uid + 1).':*');
+
+        if ($since !== null) {
+            $query->whereSince($since);
+        }
+
+        $messages = $query->get();
 
         // IMAP "n:*" always returns the highest message even when none are >= n,
         // so we filter strictly greater than the watermark.

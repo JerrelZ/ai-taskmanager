@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property string $password
  * @property array<string, mixed>|null $external_db_dsn
  * @property bool $is_active
+ * @property int|null $sync_days
  * @property Carbon|null $last_sync_at
  * @property string|null $last_sync_error
  */
@@ -44,6 +45,7 @@ class EmailAccount extends Model
         'password',
         'external_db_dsn',
         'is_active',
+        'sync_days',
         'last_sync_at',
         'last_sync_error',
     ];
@@ -62,6 +64,7 @@ class EmailAccount extends Model
             'password' => 'encrypted',
             'external_db_dsn' => 'encrypted:array',
             'is_active' => 'boolean',
+            'sync_days' => 'integer',
             'last_sync_at' => 'datetime',
         ];
     }

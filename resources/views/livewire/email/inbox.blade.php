@@ -1,4 +1,4 @@
-<div class="flex h-full w-full flex-1 flex-col overflow-hidden">
+<div class="-m-6 flex h-[calc(100%+3rem)] w-[calc(100%+3rem)] flex-1 flex-col overflow-hidden lg:-m-8 lg:h-[calc(100%+4rem)] lg:w-[calc(100%+4rem)]">
     {{-- Header --}}
     <div class="flex items-center justify-between gap-4 border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
         <div class="flex items-center gap-3">
@@ -75,13 +75,13 @@
             </div>
 
             {{-- Center: messages of the selected thread --}}
-            <div class="flex min-w-0 flex-1 flex-col overflow-y-auto">
+            <div class="flex min-h-0 min-w-0 flex-1 flex-col">
                 @if ($this->selectedThread)
-                    <div class="border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
+                    <div class="shrink-0 border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
                         <flux:heading size="lg">{{ $this->selectedThread->subject ?: __('(geen onderwerp)') }}</flux:heading>
                     </div>
 
-                    <div class="flex flex-col gap-4 p-6">
+                    <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
                         @foreach ($this->selectedThread->messages as $message)
                             <flux:card wire:key="msg-{{ $message->id }}" @class(['ml-8' => $message->direction === 'outbound'])>
                                 <div class="mb-2 flex items-center justify-between gap-2">
@@ -99,18 +99,35 @@
                                         {{ __('Dit bericht kon niet verwerkt worden. De originele e-mail is bewaard.') }}
                                     </flux:callout>
                                 @else
-                                    <div class="whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">{{ $message->text_body ?: strip_tags((string) $message->html_body) }}</div>
+                                    @php($body = \App\Support\EmailBody::split($message->text_body, $message->html_body))
+                                    <div class="whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">{{ $body['visible'] }}</div>
+
+                                    @if ($body['quoted'])
+                                        <div x-data="{ show: false }" class="mt-2">
+                                            <button type="button" x-on:click="show = !show"
+                                                class="inline-flex items-center gap-1 rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 transition hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700">
+                                                <flux:icon name="ellipsis-horizontal" class="size-4" />
+                                                <span x-show="!show">{{ __('Geciteerde tekst tonen') }}</span>
+                                                <span x-show="show" x-cloak>{{ __('Geciteerde tekst verbergen') }}</span>
+                                            </button>
+                                            <div x-show="show" x-cloak
+                                                class="mt-2 whitespace-pre-wrap border-l-2 border-zinc-200 pl-3 text-xs text-zinc-400 dark:border-zinc-700">{{ $body['quoted'] }}</div>
+                                        </div>
+                                    @endif
                                 @endif
                             </flux:card>
                         @endforeach
                     </div>
 
                     @if (auth()->user()->isTeam())
-                        <div class="mt-auto border-t border-zinc-200 p-4 dark:border-zinc-700">
+                        <div class="shrink-0 border-t border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
                             <form wire:submit="sendReply" class="flex flex-col gap-2">
-                                <flux:textarea wire:model="replyBody" rows="3"
+                                <flux:textarea wire:model="replyBody" rows="2"
                                     placeholder="{{ __('Typ je antwoord...') }}" />
-                                <div class="flex justify-end">
+                                <div class="flex items-center justify-between">
+                                    <flux:text class="text-xs text-zinc-400">
+                                        {{ __('Antwoord aan :naam', ['naam' => $this->selectedThread->messages->where('direction', 'inbound')->last()?->from_email ?? __('afzender')]) }}
+                                    </flux:text>
                                     <flux:button type="submit" variant="primary" size="sm" icon="paper-airplane"
                                         wire:loading.attr="disabled" wire:target="sendReply">
                                         {{ __('Versturen') }}
@@ -167,6 +184,9 @@
                 <flux:input wire:model="username" :label="__('Gebruikersnaam')" placeholder="support@bedrijf.nl" />
                 <flux:input wire:model="accountPassword" type="password" :label="__('App-wachtwoord')"
                     :description="$this->account() ? __('Laat leeg om het huidige wachtwoord te behouden.') : null" />
+
+                <flux:input wire:model="syncDays" type="number" min="1" max="3650" :label="__('E-mails ophalen tot (dagen terug)')"
+                    placeholder="30" :description="__('Bij het eerste ophalen worden alleen e-mails vanaf dit aantal dagen terug binnengehaald. Laat leeg voor de volledige geschiedenis.')" />
 
                 <div class="flex items-center justify-between">
                     <flux:button wire:click="testConnection" type="button" variant="ghost" size="sm" icon="signal">
