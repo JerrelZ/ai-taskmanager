@@ -48,6 +48,18 @@ test('editing core fields auto-saves on update', function () {
         ->and($this->task->status)->toBe(TaskStatus::InProgress);
 });
 
+test('the description is saved as sanitized html', function () {
+    openDetail()
+        ->set('description', '<p>Hallo <strong>wereld</strong></p><script>alert(1)</script>')
+        ->call('saveDescription');
+
+    $this->task->refresh();
+
+    expect($this->task->description)
+        ->toContain('<p>Hallo <strong>wereld</strong></p>')
+        ->not->toContain('<script');
+});
+
 test('a blank title fails validation', function () {
     openDetail()
         ->set('title', '')

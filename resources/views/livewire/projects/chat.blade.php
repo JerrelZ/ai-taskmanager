@@ -15,11 +15,7 @@
                         <flux:heading size="sm">{{ $message->user?->name ?? __('Onbekend') }}</flux:heading>
                         <flux:text size="sm" class="text-zinc-400">{{ $message->created_at->diffForHumans() }}</flux:text>
                     </div>
-                    @php
-                        $safe = e($message->body);
-                        $linked = preg_replace('~(https?://[^\s]+)~', '<a href="$1" target="_blank" rel="noopener" class="text-brand-500 underline">$1</a>', $safe);
-                    @endphp
-                    <div class="mt-0.5 text-sm text-zinc-700 dark:text-zinc-200">{!! nl2br($linked) !!}</div>
+                    <div class="mt-0.5 text-sm text-zinc-700 dark:text-zinc-200">{!! \App\Support\Mentions::render($message->body) !!}</div>
                 </div>
             </div>
         @empty

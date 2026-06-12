@@ -72,6 +72,19 @@
     }
 }
 
+[x-cloak] {
+    display: none !important;
+}
+
+/* Mentions/links inside an own (brand-coloured) chat bubble need light contrast. */
+.prose-mentions-light a {
+    @apply text-white underline;
+}
+
+.prose-mentions-light span {
+    @apply bg-white/20 !text-white;
+}
+
 /* Editorial display headings — large serif with tight tracking. */
 .font-display {
     font-family: var(--font-serif);

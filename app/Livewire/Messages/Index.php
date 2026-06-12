@@ -82,7 +82,7 @@ class Index extends Component
      * @return Collection<int, Message>
      */
     #[Computed]
-    public function messages(): Collection
+    public function thread(): Collection
     {
         return $this->activeConversation?->messages()->with('user')->get() ?? collect();
     }
@@ -170,8 +170,6 @@ class Index extends Component
 
         $validated = $this->validate([
             'newGroupName' => 'required|string|max:255',
-            'newGroupMembers' => 'array',
-            'newGroupMembers.*' => 'exists:users,id',
         ]);
 
         $conversation = Conversation::create([
@@ -181,7 +179,12 @@ class Index extends Component
             'last_message_at' => now(),
         ]);
 
-        $members = collect($validated['newGroupMembers'])->push(Auth::id())->unique()->all();
+        $members = User::query()
+            ->whereIn('id', $this->newGroupMembers)
+            ->pluck('id')
+            ->push(Auth::id())
+            ->unique()
+            ->all();
         $conversation->users()->sync($members);
 
         $this->reset('newGroupName', 'newGroupMembers');

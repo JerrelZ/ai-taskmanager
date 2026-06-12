@@ -9,7 +9,7 @@
         </flux:modal.trigger>
     </div>
 
-    <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
+    <div class="overflow-hidden rounded-xl border border-zinc-200 px-4 dark:border-zinc-700">
         <flux:table>
             <flux:table.columns>
                 <flux:table.column>{{ __('Naam') }}</flux:table.column>

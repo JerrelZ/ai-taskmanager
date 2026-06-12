@@ -17,7 +17,8 @@
                 <flux:sidebar.item icon="queue-list" :href="route('tickets.index')" :current="request()->routeIs('tickets.index') && ! request()->boolean('onlyStale')" wire:navigate>
                     {{ __('Alle tickets') }}
                 </flux:sidebar.item>
-                <flux:sidebar.item icon="chat-bubble-left-right" :href="route('messages.index')" :current="request()->routeIs('messages.*')" wire:navigate>
+                @php $unreadMessages = auth()->user()->unreadMessagesCount(); @endphp
+                <flux:sidebar.item icon="chat-bubble-left-right" :href="route('messages.index')" :current="request()->routeIs('messages.*')" :badge="$unreadMessages > 0 ? $unreadMessages : null" badge:color="brand" wire:navigate>
                     {{ __('Berichten') }}
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="clock" :href="route('tickets.index', ['onlyStale' => 1])" :current="request()->routeIs('tickets.index') && request()->boolean('onlyStale')" wire:navigate>

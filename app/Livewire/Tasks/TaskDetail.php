@@ -127,9 +127,33 @@ class TaskDetail extends Component
             return;
         }
 
-        if (in_array($property, ['title', 'description', 'status', 'priority', 'assigneeId', 'dueDate'], true)) {
+        if (in_array($property, ['title', 'status', 'priority', 'assigneeId', 'dueDate'], true)) {
             $this->saveTask();
         }
+    }
+
+    /**
+     * Persist the (rich-text) description on demand from the editor.
+     */
+    public function saveDescription(): void
+    {
+        $this->saveTask();
+    }
+
+    /**
+     * Strip dangerous markup from editor HTML before persisting.
+     */
+    private function sanitizeHtml(?string $html): ?string
+    {
+        if ($html === null || trim(strip_tags($html)) === '') {
+            return null;
+        }
+
+        $html = preg_replace('#<\s*(script|style|iframe|object|embed)[^>]*>.*?<\s*/\s*\1\s*>#is', '', $html);
+        $html = preg_replace('#\son\w+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)#i', '', $html);
+        $html = preg_replace('#(href|src)\s*=\s*("|\')?\s*javascript:[^"\'>]*("|\')?#i', '', $html);
+
+        return $html;
     }
 
     public function saveTask(): void
@@ -170,7 +194,7 @@ class TaskDetail extends Component
 
         $task->update([
             'title' => $this->title,
-            'description' => $this->description !== '' ? $this->description : null,
+            'description' => $this->sanitizeHtml($this->description),
             'status' => $newStatus,
             'priority' => $newPriority,
             'assignee_id' => $newAssigneeId,

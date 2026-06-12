@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
@@ -77,6 +78,19 @@ class User extends Authenticatable implements PasskeyUser
     public function isClient(): bool
     {
         return $this->role === UserRole::Client;
+    }
+
+    /**
+     * Total unread messages across the conversations this user belongs to.
+     */
+    public function unreadMessagesCount(): int
+    {
+        return DB::table('conversation_user as cu')
+            ->join('messages as m', 'm.conversation_id', '=', 'cu.conversation_id')
+            ->where('cu.user_id', $this->id)
+            ->where('m.user_id', '!=', $this->id)
+            ->where(fn ($q) => $q->whereNull('cu.last_read_at')->orWhereColumn('m.created_at', '>', 'cu.last_read_at'))
+            ->count();
     }
 
     /**

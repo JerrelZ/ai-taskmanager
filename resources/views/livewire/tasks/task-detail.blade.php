@@ -37,9 +37,27 @@
                 <div class="flex-1 space-y-6 overflow-y-auto pe-1 lg:pe-3">
                     <flux:input wire:model.blur="title" variant="filled" class="font-display !text-2xl" placeholder="{{ __('Task titel') }}" />
 
-                    <div>
+                    <div x-data="{ editing: false }" wire:key="desc-{{ $task->id }}">
                         <flux:subheading class="mb-1">{{ __('Omschrijving') }}</flux:subheading>
-                        <flux:textarea wire:model.blur="description" variant="filled" rows="5" placeholder="{{ __('Voeg een omschrijving toe... (links worden klikbaar)') }}" />
+
+                        {{-- Read mode: click to edit --}}
+                        <div x-show="! editing" x-on:click="editing = true"
+                            class="prose prose-sm max-w-none cursor-text rounded-lg border border-transparent px-3 py-2 text-sm text-zinc-700 hover:border-zinc-200 dark:text-zinc-200 dark:hover:border-zinc-700">
+                            @if (filled($task->description))
+                                {!! $task->description !!}
+                            @else
+                                <span class="text-zinc-400">{{ __('Klik om een omschrijving toe te voegen…') }}</span>
+                            @endif
+                        </div>
+
+                        {{-- Edit mode: rich editor --}}
+                        <div x-show="editing" x-cloak>
+                            <flux:editor wire:model="description" toolbar="heading | bold italic underline | bullet ordered | link" />
+                            <div class="mt-2 flex justify-end gap-2">
+                                <flux:button size="sm" variant="ghost" x-on:click="editing = false">{{ __('Sluiten') }}</flux:button>
+                                <flux:button size="sm" variant="primary" x-on:click="$wire.saveDescription().then(() => editing = false)">{{ __('Opslaan') }}</flux:button>
+                            </div>
+                        </div>
                     </div>
 
                     {{-- Subtasks --}}
@@ -74,36 +92,40 @@
 
                     <flux:separator />
 
-                    {{-- Activity & comments timeline --}}
+                    {{-- Comments --}}
                     <div class="space-y-4">
-                        <flux:subheading>{{ __('Activiteit') }}</flux:subheading>
-
-                        @php
-                            $feed = $task->comments->map(fn ($c) => ['kind' => 'comment', 'at' => $c->created_at, 'item' => $c])
-                                ->concat($task->activities->map(fn ($a) => ['kind' => 'activity', 'at' => $a->created_at, 'item' => $a]))
-                                ->sortBy('at');
-                        @endphp
+                        <flux:subheading>{{ __('Reacties') }}</flux:subheading>
 
                         <div class="space-y-4">
-                            @forelse ($feed as $entry)
-                                @if ($entry['kind'] === 'comment')
-                                    @php $comment = $entry['item']; @endphp
-                                    <div wire:key="comment-{{ $comment->id }}" class="flex gap-3">
-                                        <flux:avatar size="sm" circle :name="$comment->user->name" :initials="$comment->user->initials()" />
-                                        <div class="flex-1">
-                                            <div class="flex items-baseline gap-2">
-                                                <flux:heading size="sm">{{ $comment->user->name }}</flux:heading>
-                                                <flux:text size="sm" class="text-zinc-400">{{ $comment->created_at->diffForHumans() }}</flux:text>
-                                            </div>
-                                            @php
-                                                $safe = e($comment->body);
-                                                $linked = preg_replace('~(https?://[^\s]+)~', '<a href="$1" target="_blank" rel="noopener" class="text-brand-500 underline">$1</a>', $safe);
-                                            @endphp
-                                            <div class="mt-0.5 text-sm text-zinc-700 dark:text-zinc-200">{!! nl2br($linked) !!}</div>
+                            @forelse ($task->comments as $comment)
+                                <div wire:key="comment-{{ $comment->id }}" class="flex gap-3">
+                                    <flux:avatar size="sm" circle :name="$comment->user->name" :initials="$comment->user->initials()" />
+                                    <div class="flex-1">
+                                        <div class="flex items-baseline gap-2">
+                                            <flux:heading size="sm">{{ $comment->user->name }}</flux:heading>
+                                            <flux:text size="sm" class="text-zinc-400">{{ $comment->created_at->diffForHumans() }}</flux:text>
                                         </div>
+                                        <div class="mt-0.5 text-sm text-zinc-700 dark:text-zinc-200">{!! \App\Support\Mentions::render($comment->body, $this->users) !!}</div>
                                     </div>
-                                @else
-                                    @php $activity = $entry['item']; @endphp
+                                </div>
+                            @empty
+                                <flux:text size="sm" class="text-zinc-400">{{ __('Nog geen reacties.') }}</flux:text>
+                            @endforelse
+                        </div>
+
+                        <form wire:submit="addComment" class="flex items-end gap-2">
+                            <flux:textarea wire:model="newComment" rows="1" class="flex-1" placeholder="{{ __('Schrijf een reactie... (@naam om te taggen)') }}" />
+                            <flux:button type="submit" variant="primary" icon="paper-airplane" />
+                        </form>
+                    </div>
+
+                    {{-- Activity log (below comments) --}}
+                    @if ($task->activities->isNotEmpty())
+                        <flux:separator />
+                        <div class="space-y-3">
+                            <flux:subheading>{{ __('Activiteit') }}</flux:subheading>
+                            <div class="space-y-2">
+                                @foreach ($task->activities as $activity)
                                     <div wire:key="activity-{{ $activity->id }}" class="flex items-center gap-3 ps-1 text-xs text-zinc-400">
                                         <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
                                             <flux:icon name="arrow-path" variant="micro" />
@@ -114,17 +136,10 @@
                                             · {{ $activity->created_at->diffForHumans() }}
                                         </span>
                                     </div>
-                                @endif
-                            @empty
-                                <flux:text size="sm" class="text-zinc-400">{{ __('Nog geen activiteit.') }}</flux:text>
-                            @endforelse
+                                @endforeach
+                            </div>
                         </div>
-
-                        <form wire:submit="addComment" class="flex items-end gap-2">
-                            <flux:textarea wire:model="newComment" rows="1" class="flex-1" placeholder="{{ __('Schrijf een reactie...') }}" />
-                            <flux:button type="submit" variant="primary" icon="paper-airplane" />
-                        </form>
-                    </div>
+                    @endif
                 </div>
 
                 {{-- Sidebar: properties --}}
