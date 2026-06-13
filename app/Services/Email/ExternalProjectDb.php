@@ -56,6 +56,55 @@ class ExternalProjectDb
     }
 
     /**
+     * Find rows whose email-like column matches the given address, scanning the
+     * external schema for columns named like "%email%". Read-only throughout.
+     *
+     * @return array<int, array{table: string, column: string, row: array<string, mixed>}>
+     */
+    public function findByEmail(EmailAccount $account, string $email, int $limit = 5): array
+    {
+        // Restrict to string columns so boolean/int/date columns whose name merely
+        // contains "email" (e.g. weekly_advertiser_emails, sent_email_id,
+        // email_verified_at) can't produce false positives via type coercion.
+        $columns = $this->select(
+            $account,
+            'SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS '
+                .'WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME LIKE ? '
+                ."AND DATA_TYPE IN ('char', 'varchar', 'tinytext', 'text', 'mediumtext', 'longtext') "
+                .'LIMIT 25',
+            ['%email%'],
+        );
+
+        $results = [];
+
+        foreach ($columns as $column) {
+            $table = (string) $column->TABLE_NAME;
+            $col = (string) $column->COLUMN_NAME;
+
+            // Identifiers can't be bound; they come from information_schema, not user input.
+            if (! preg_match('/^[A-Za-z0-9_]+$/', $table) || ! preg_match('/^[A-Za-z0-9_]+$/', $col)) {
+                continue;
+            }
+
+            $rows = $this->select(
+                $account,
+                "SELECT * FROM `{$table}` WHERE `{$col}` = ? LIMIT 1",
+                [$email],
+            );
+
+            if ($rows !== []) {
+                $results[] = ['table' => $table, 'column' => $col, 'row' => (array) $rows[0]];
+            }
+
+            if (count($results) >= $limit) {
+                break;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
      * Reject anything that is not a single read-only statement.
      */
     public function assertReadOnly(string $sql): void
