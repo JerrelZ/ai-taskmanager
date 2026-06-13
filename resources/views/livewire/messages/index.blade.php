@@ -1,8 +1,12 @@
-<div class="-m-6 flex h-[calc(100%+3rem)] w-[calc(100%+3rem)] flex-1 overflow-hidden lg:-m-8 lg:h-[calc(100%+4rem)] lg:w-[calc(100%+4rem)]" wire:poll.5s>
+<div class="-m-6 flex h-dvh w-[calc(100%+3rem)] overflow-hidden lg:-m-8 lg:w-[calc(100%+4rem)]" wire:poll.5s>
     @php $me = auth()->user(); @endphp
 
     {{-- Conversation list --}}
-    <div class="flex w-80 shrink-0 flex-col border-e border-zinc-200 dark:border-zinc-700">
+    <div @class([
+        'w-full shrink-0 flex-col border-e border-zinc-200 lg:w-80 dark:border-zinc-700',
+        'hidden lg:flex' => $this->activeConversation !== null,
+        'flex' => $this->activeConversation === null,
+    ])>
         <div class="flex items-center justify-between gap-2 border-b border-zinc-200 px-4 py-4 dark:border-zinc-700">
             <h1 class="font-display text-2xl leading-none text-zinc-900 dark:text-zinc-50">{{ __('Berichten') }}</h1>
             @if ($me->isTeam())
@@ -61,11 +65,16 @@
     </div>
 
     {{-- Active thread --}}
-    <div class="flex flex-1 flex-col">
+    <div @class([
+        'min-w-0 flex-1 flex-col',
+        'hidden lg:flex' => $this->activeConversation === null,
+        'flex' => $this->activeConversation !== null,
+    ])>
         @if ($this->activeConversation)
             @php $conversation = $this->activeConversation; @endphp
-            <div class="flex items-center gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
-                <flux:heading size="lg">{{ $conversation->titleFor($me) }}</flux:heading>
+            <div class="flex items-center gap-3 border-b border-zinc-200 px-4 py-4 lg:px-6 dark:border-zinc-700">
+                <flux:button wire:click="$set('conversationId', null)" variant="subtle" size="sm" icon="arrow-left" class="lg:hidden" />
+                <flux:heading size="lg" class="min-w-0 truncate">{{ $conversation->titleFor($me) }}</flux:heading>
                 @if ($conversation->type === \App\Enums\ConversationType::Project && $conversation->project)
                     <flux:button :href="route('projects.board', $conversation->project)" wire:navigate size="sm" variant="ghost" icon="arrow-up-right">{{ __('Project') }}</flux:button>
                 @endif
