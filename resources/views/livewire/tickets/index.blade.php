@@ -1,9 +1,9 @@
 <div class="flex h-full w-full flex-1 flex-col overflow-hidden">
     {{-- Header --}}
-    <div class="flex flex-col gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
+    <div class="flex flex-col gap-3 border-b border-zinc-200 px-4 py-4 lg:px-6 dark:border-zinc-700">
         <div class="flex items-end justify-between gap-4">
             <div>
-                <h1 class="font-display text-4xl leading-none text-zinc-900 dark:text-zinc-50">{{ __('Alle tickets') }}</h1>
+                <h1 class="font-display text-3xl leading-none text-zinc-900 lg:text-4xl dark:text-zinc-50">{{ __('Alle tickets') }}</h1>
                 <flux:subheading class="mt-1.5">{{ __('Sleep om prioriteit te bepalen over alle projecten heen.') }}</flux:subheading>
             </div>
             <span class="font-display text-3xl leading-none text-zinc-400">{{ $this->tickets->count() }}</span>
@@ -53,7 +53,7 @@
         {{-- "Nu" block --}}
         @if ($this->nowTask)
             @php $now = $this->nowTask; @endphp
-            <div class="border-b border-zinc-200 px-6 py-6 dark:border-zinc-800">
+            <div class="border-b border-zinc-200 px-4 py-6 lg:px-6 dark:border-zinc-800">
                 <div class="flex items-end gap-4">
                     <div class="min-w-0 flex-1">
                         <div class="mb-1 flex items-center gap-2">

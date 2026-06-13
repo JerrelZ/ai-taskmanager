@@ -1,6 +1,6 @@
 <div class="flex h-full w-full flex-1 flex-col overflow-hidden">
     {{-- Header --}}
-    <div class="flex flex-col gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
+    <div class="flex flex-col gap-3 border-b border-zinc-200 px-4 py-4 lg:px-6 dark:border-zinc-700">
         <div class="flex items-center justify-between gap-4">
             <div class="flex items-center gap-3">
                 <flux:button href="{{ route('projects.index') }}" wire:navigate variant="ghost" size="sm" icon="arrow-left" inset="left" />

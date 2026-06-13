@@ -1,7 +1,10 @@
-const CACHE = 'tasks-shell-v1';
+const CACHE = 'tasks-shell-v2';
+const OFFLINE_URL = '/offline.html';
 
-self.addEventListener('install', () => {
-    self.skipWaiting();
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(CACHE).then((cache) => cache.add(OFFLINE_URL)).then(() => self.skipWaiting())
+    );
 });
 
 self.addEventListener('activate', (event) => {
@@ -13,7 +16,8 @@ self.addEventListener('activate', (event) => {
 });
 
 // Network-first for navigations so the app stays fresh, with a cached
-// fallback when offline. Other requests pass through untouched.
+// fallback (the last-seen page, then the offline page) when offline.
+// Other requests pass through untouched.
 self.addEventListener('fetch', (event) => {
     const request = event.request;
 
@@ -28,6 +32,8 @@ self.addEventListener('fetch', (event) => {
                 caches.open(CACHE).then((cache) => cache.put(request, copy));
                 return response;
             })
-            .catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
+            .catch(() =>
+                caches.match(request).then((cached) => cached || caches.match(OFFLINE_URL))
+            )
     );
 });

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#7c3aed">
+    <title>Offline — Tasks</title>
+    <style>
+        :root { color-scheme: light dark; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            background: #f8f6f1;
+            color: #27272a;
+            padding: 1.5rem;
+        }
+        @media (prefers-color-scheme: dark) {
+            body { background: #09090b; color: #e4e4e7; }
+            .card { background: #18181b; border-color: #27272a; }
+            .muted { color: #a1a1aa; }
+        }
+        .card {
+            max-width: 24rem;
+            width: 100%;
+            text-align: center;
+            background: #fff;
+            border: 1px solid #e4e4e7;
+            border-radius: 1rem;
+            padding: 2rem;
+        }
+        .dot {
+            width: 2.75rem;
+            height: 2.75rem;
+            border-radius: 9999px;
+            background: #7c3aed;
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        h1 { font-size: 1.25rem; margin: 0 0 .5rem; }
+        .muted { color: #71717a; font-size: .925rem; line-height: 1.5; margin: 0 0 1.5rem; }
+        button {
+            font: inherit;
+            font-weight: 600;
+            color: #fff;
+            background: #7c3aed;
+            border: 0;
+            border-radius: .625rem;
+            padding: .625rem 1.25rem;
+            cursor: pointer;
+        }
+        button:hover { background: #6d28d9; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="dot">t</div>
+        <h1>Je bent offline</h1>
+        <p class="muted">Er is geen internetverbinding. Controleer je verbinding en probeer het opnieuw — je werk staat veilig.</p>
+        <button onclick="location.reload()">Opnieuw proberen</button>
+    </div>
+</body>
+</html>
