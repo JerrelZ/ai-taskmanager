@@ -2,6 +2,7 @@
 
 namespace App\Services\Email;
 
+use App\Models\EmailAccount;
 use App\Models\EmailContactLink;
 use App\Models\EmailMessage;
 use App\Models\EmailThread;
@@ -126,7 +127,7 @@ class EmailContextInvestigator
     /**
      * Execute one read-only query for the agent and return a JSON string result.
      */
-    private function runQuery($account, string $sql): string
+    private function runQuery(EmailAccount $account, string $sql): string
     {
         if (trim($sql) === '') {
             return 'Fout: lege query.';
@@ -152,7 +153,7 @@ class EmailContextInvestigator
      *
      * @param  array<string, mixed>  $input
      */
-    private function runApiTool($account, string $name, array $input): string
+    private function runApiTool(EmailAccount $account, string $name, array $input): string
     {
         try {
             $data = match ($name) {
@@ -294,7 +295,7 @@ class EmailContextInvestigator
      *
      * @return string|array<int, array<string, mixed>>
      */
-    private function userContent(EmailThread $thread, $account): string|array
+    private function userContent(EmailThread $thread, EmailAccount $account): string|array
     {
         $text = $this->prompt($thread, $account);
         $blocks = $this->attachmentBlocks($thread);
@@ -353,7 +354,7 @@ class EmailContextInvestigator
         return $blocks;
     }
 
-    private function prompt(EmailThread $thread, $account): string
+    private function prompt(EmailThread $thread, EmailAccount $account): string
     {
         $latest = $thread->messages->where('direction', EmailMessage::DIRECTION_INBOUND)->last();
         $sender = $latest?->from_email ?? 'onbekend';
