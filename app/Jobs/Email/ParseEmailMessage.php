@@ -68,6 +68,10 @@ class ParseEmailMessage implements ShouldQueue
 
             CategoriseEmailThread::dispatch($thread->id);
 
+            if ($message->direction === EmailMessage::DIRECTION_INBOUND && filled($message->from_email)) {
+                AutoLinkSender::dispatch($thread->id);
+            }
+
             $this->notifyAssignee($thread, $message);
         } catch (Throwable $e) {
             $this->recordFailure($message, $e);
