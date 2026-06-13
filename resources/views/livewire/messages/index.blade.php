@@ -97,10 +97,29 @@
                             @if ($showName)
                                 <div class="mb-0.5 text-xs font-semibold text-brand-600 dark:text-brand-400">{{ $message->user?->name ?? __('Onbekend') }}</div>
                             @endif
-                            <div @class([
-                                'text-sm break-words',
-                                'prose-mentions-light' => $mine,
-                            ])>{!! \App\Support\Mentions::render($message->body) !!}</div>
+                            @if (filled($message->body))
+                                <div @class([
+                                    'text-sm break-words',
+                                    'prose-mentions-light' => $mine,
+                                ])>{!! \App\Support\Mentions::render($message->body) !!}</div>
+                            @endif
+
+                            @if ($message->attachments->isNotEmpty())
+                                <div class="mt-1 flex flex-col gap-1">
+                                    @foreach ($message->attachments as $attachment)
+                                        <a href="{{ route('attachments.download', $attachment) }}" @class([
+                                            'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs',
+                                            'bg-white/15 text-white hover:bg-white/25' => $mine,
+                                            'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-200' => ! $mine,
+                                        ])>
+                                            <flux:icon :name="$attachment->isImage() ? 'photo' : 'paper-clip'" class="size-3.5" />
+                                            <span class="max-w-[12rem] truncate">{{ $attachment->filename }}</span>
+                                            <span @class(['text-white/60' => $mine, 'text-zinc-400' => ! $mine])>{{ $attachment->humanSize() }}</span>
+                                        </a>
+                                    @endforeach
+                                </div>
+                            @endif
+
                             <div @class([
                                 'mt-1 text-right text-[10px] leading-none',
                                 'text-white/70' => $mine,
@@ -130,8 +149,21 @@
                             </template>
                         </div>
                     </div>
+                    <label class="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        :title="__('Bijlage toevoegen')">
+                        <flux:icon name="paper-clip" class="size-5" />
+                        <input type="file" wire:model="newChatAttachments" multiple class="hidden" />
+                    </label>
                     <flux:button type="submit" variant="primary" icon="paper-airplane">{{ __('Verstuur') }}</flux:button>
                 </form>
+
+                @if (count($newChatAttachments) > 0)
+                    <div class="flex items-center gap-2 px-6 pb-3 text-xs text-zinc-500">
+                        <flux:icon name="paper-clip" class="size-3.5" />
+                        {{ trans_choice('{1}:count bijlage klaar om te versturen|[2,*]:count bijlagen klaar om te versturen', count($newChatAttachments), ['count' => count($newChatAttachments)]) }}
+                        <span wire:loading wire:target="newChatAttachments" class="text-zinc-400">{{ __('(uploaden...)') }}</span>
+                    </div>
+                @endif
             </div>
         @else
             <div class="flex h-full flex-col items-center justify-center gap-2 text-center text-zinc-400">

@@ -143,7 +143,7 @@ class Inbox extends Component
         return EmailThread::query()
             ->where('project_id', $this->project->id)
             ->visibleTo(Auth::user())
-            ->with(['messages' => fn ($q) => $q->orderBy('sent_at'), 'assignee:id,name'])
+            ->with(['messages' => fn ($q) => $q->orderBy('sent_at')->with('attachments'), 'assignee:id,name'])
             ->find($this->selectedThreadId);
     }
 

@@ -6,6 +6,7 @@ use App\Models\EmailAccount;
 use App\Models\EmailFolder;
 use App\Models\EmailMessage;
 use App\Models\EmailThread;
+use App\Services\AttachmentService;
 use App\Services\Email\MailParser;
 use App\Services\Email\RawEmailStore;
 use Illuminate\Support\Facades\Bus;
@@ -54,7 +55,11 @@ function receivedMessage(EmailAccount $account, EmailFolder $folder, string $raw
 
 function parse(EmailMessage $message): void
 {
-    (new ParseEmailMessage($message->id))->handle(app(RawEmailStore::class), app(MailParser::class));
+    (new ParseEmailMessage($message->id))->handle(
+        app(RawEmailStore::class),
+        app(MailParser::class),
+        app(AttachmentService::class),
+    );
 }
 
 beforeEach(function () {

@@ -9,6 +9,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
 use App\Models\User;
+use App\Services\AttachmentService;
 use App\Services\MessageToTaskDrafter;
 use App\Support\TaskActivity;
 use Flux\Flux;
@@ -19,14 +20,21 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 
 #[Title('Berichten')]
 class Index extends Component
 {
+    use WithFileUploads;
+
     #[Url]
     public ?int $conversationId = null;
 
     public string $body = '';
+
+    /** @var array<int, TemporaryUploadedFile> */
+    public array $newChatAttachments = [];
 
     public ?int $newDmUserId = null;
 
@@ -84,7 +92,7 @@ class Index extends Component
     #[Computed]
     public function thread(): Collection
     {
-        return $this->activeConversation?->messages()->with('user')->get() ?? collect();
+        return $this->activeConversation?->messages()->with(['user', 'attachments'])->get() ?? collect();
     }
 
     /**
@@ -115,19 +123,29 @@ class Index extends Component
         unset($this->conversations, $this->activeConversation, $this->messages);
     }
 
-    public function send(): void
+    public function send(AttachmentService $attachments): void
     {
         $conversation = $this->activeConversation;
         $body = trim($this->body);
 
-        if ($conversation === null || $body === '') {
+        if ($conversation === null || ($body === '' && $this->newChatAttachments === [])) {
             return;
         }
 
-        $conversation->postMessage(Auth::user(), $body);
+        $this->validate([
+            'newChatAttachments' => ['array', 'max:10'],
+            'newChatAttachments.*' => ['file', 'max:25600'], // 25 MB each
+        ]);
+
+        $message = $conversation->postMessage(Auth::user(), $body);
+
+        foreach ($this->newChatAttachments as $file) {
+            $attachments->storeUpload($file, $message, Auth::user());
+        }
+
         $conversation->markReadFor(Auth::user());
 
-        $this->body = '';
+        $this->reset('body', 'newChatAttachments');
 
         unset($this->conversations, $this->messages);
     }

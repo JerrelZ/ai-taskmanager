@@ -6,6 +6,7 @@ use App\Models\EmailMessage;
 use App\Models\EmailThread;
 use App\Models\User;
 use App\Notifications\InboxNotification;
+use App\Services\AttachmentService;
 use App\Services\Email\MailParser;
 use App\Services\Email\RawEmailStore;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -29,7 +30,7 @@ class ParseEmailMessage implements ShouldQueue
 
     public function __construct(public readonly int $emailMessageId) {}
 
-    public function handle(RawEmailStore $store, MailParser $parser): void
+    public function handle(RawEmailStore $store, MailParser $parser, AttachmentService $attachments): void
     {
         $message = EmailMessage::find($this->emailMessageId);
 
@@ -38,7 +39,8 @@ class ParseEmailMessage implements ShouldQueue
         }
 
         try {
-            $parsed = $parser->parse($store->get($message->raw_path));
+            $raw = $store->get($message->raw_path);
+            $parsed = $parser->parse($raw);
             $thread = $this->resolveThread($message, $parsed, $parser);
 
             DB::transaction(function () use ($message, $parsed, $thread): void {
@@ -61,6 +63,8 @@ class ParseEmailMessage implements ShouldQueue
 
                 $this->refreshThreadAggregates($thread);
             });
+
+            $this->storeAttachments($message, $raw, $parser, $attachments);
 
             CategoriseEmailThread::dispatch($thread->id);
 
@@ -97,6 +101,20 @@ class ParseEmailMessage implements ShouldQueue
                 'last_message_at' => $parsed['sent_at'] ?? $message->received_at,
             ],
         );
+    }
+
+    /**
+     * Persist the message's file attachments (idempotent).
+     */
+    private function storeAttachments(EmailMessage $message, string $raw, MailParser $parser, AttachmentService $attachments): void
+    {
+        if ($message->attachments()->exists()) {
+            return;
+        }
+
+        foreach ($parser->extractAttachments($raw) as $attachment) {
+            $attachments->storeRaw($attachment['content'], $attachment['name'], $attachment['mime'], $message);
+        }
     }
 
     /**

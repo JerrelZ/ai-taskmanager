@@ -8,6 +8,7 @@ use App\Livewire\Concerns\CopiesTaskPrompt;
 use App\Models\Label;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\AttachmentService;
 use App\Support\TaskActivity;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -15,12 +16,18 @@ use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 
 class TaskDetail extends Component
 {
     use CopiesTaskPrompt;
+    use WithFileUploads;
 
     public ?int $taskId = null;
+
+    /** @var array<int, TemporaryUploadedFile> */
+    public array $newAttachments = [];
 
     // Editable fields
     public string $title = '';
@@ -80,8 +87,43 @@ class TaskDetail extends Component
         }
 
         return Task::query()
-            ->with(['project', 'subtasks.assignee', 'comments.user', 'activities.user', 'parent'])
+            ->with(['project', 'subtasks.assignee', 'comments.user', 'activities.user', 'parent', 'attachments.uploader'])
             ->find($this->taskId);
+    }
+
+    public function uploadAttachments(AttachmentService $attachments): void
+    {
+        $task = $this->task();
+
+        if ($task === null) {
+            return;
+        }
+
+        $this->validate([
+            'newAttachments' => ['required', 'array', 'max:10'],
+            'newAttachments.*' => ['file', 'max:25600'], // 25 MB each
+        ]);
+
+        foreach ($this->newAttachments as $file) {
+            $attachments->storeUpload($file, $task, Auth::user());
+        }
+
+        $this->reset('newAttachments');
+        unset($this->task);
+        Flux::toast(variant: 'success', text: __('Bijlage(n) toegevoegd.'));
+    }
+
+    public function deleteAttachment(int $attachmentId): void
+    {
+        $task = $this->task();
+
+        if ($task === null) {
+            return;
+        }
+
+        $task->attachments()->whereKey($attachmentId)->first()?->delete();
+
+        unset($this->task);
     }
 
     /**

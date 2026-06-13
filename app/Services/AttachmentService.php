@@ -1,0 +1,68 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Attachment;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
+/**
+ * Stores files (uploads or raw bytes) on a private disk and links them to a
+ * model via a polymorphic Attachment record.
+ */
+class AttachmentService
+{
+    private const DISK = 'local';
+
+    public function storeUpload(UploadedFile $file, Model $attachable, ?User $uploader = null): Attachment
+    {
+        $path = $file->store($this->directory($attachable), self::DISK);
+
+        return $this->record($attachable, [
+            'path' => $path,
+            'filename' => $file->getClientOriginalName() ?: basename($path),
+            'mime_type' => $file->getClientMimeType(),
+            'size' => $file->getSize() ?: 0,
+        ], $uploader);
+    }
+
+    public function storeRaw(string $contents, string $filename, ?string $mime, Model $attachable, ?User $uploader = null): Attachment
+    {
+        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+        $path = $this->directory($attachable).'/'.Str::uuid().($extension !== '' ? '.'.$extension : '');
+
+        Storage::disk(self::DISK)->put($path, $contents);
+
+        return $this->record($attachable, [
+            'path' => $path,
+            'filename' => $filename !== '' ? $filename : basename($path),
+            'mime_type' => $mime,
+            'size' => strlen($contents),
+        ], $uploader);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function record(Model $attachable, array $attributes, ?User $uploader): Attachment
+    {
+        $attachment = new Attachment([
+            ...$attributes,
+            'disk' => self::DISK,
+            'uploaded_by' => $uploader?->id,
+        ]);
+
+        $attachment->attachable()->associate($attachable);
+        $attachment->save();
+
+        return $attachment;
+    }
+
+    private function directory(Model $attachable): string
+    {
+        return 'attachments/'.Str::of(class_basename($attachable))->snake()->plural().'/'.$attachable->getKey();
+    }
+}

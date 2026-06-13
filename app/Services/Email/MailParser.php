@@ -51,6 +51,39 @@ class MailParser
     }
 
     /**
+     * Extract file attachments from a raw message, offline.
+     *
+     * @return array<int, array{name: string, mime: ?string, content: string}>
+     */
+    public function extractAttachments(string $raw): array
+    {
+        $attachments = [];
+
+        foreach (Message::fromString($raw)->getAttachments() as $attachment) {
+            // Skip inline parts (signature logos, embedded images) — keep real attachments.
+            if (strtolower((string) $attachment->disposition) === 'inline') {
+                continue;
+            }
+
+            $content = (string) $attachment->getContent();
+
+            if ($content === '') {
+                continue;
+            }
+
+            $name = trim((string) $attachment->getName());
+
+            $attachments[] = [
+                'name' => $name !== '' ? $name : 'bijlage',
+                'mime' => $this->stringOrNull($attachment->getMimeType()),
+                'content' => $content,
+            ];
+        }
+
+        return $attachments;
+    }
+
+    /**
      * Normalise a message id to a bare, lowercase form for stable comparisons.
      */
     public function normaliseId(?string $id): ?string

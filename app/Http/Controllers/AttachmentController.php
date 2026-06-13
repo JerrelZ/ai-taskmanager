@@ -1,0 +1,53 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Attachment;
+use App\Models\Conversation;
+use App\Models\EmailMessage;
+use App\Models\Message;
+use App\Models\Project;
+use App\Models\Task;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+class AttachmentController extends Controller
+{
+    public function download(Request $request, Attachment $attachment): StreamedResponse
+    {
+        abort_unless($this->canView($request->user(), $attachment), 403);
+        abort_unless(Storage::disk($attachment->disk)->exists($attachment->path), 404);
+
+        return Storage::disk($attachment->disk)->download($attachment->path, $attachment->filename);
+    }
+
+    private function canView(User $user, Attachment $attachment): bool
+    {
+        $attachable = $attachment->attachable;
+
+        return match (true) {
+            $attachable instanceof EmailMessage => $this->canSeeProject($user, $attachable->thread?->project_id),
+            $attachable instanceof Task => $this->canSeeProject($user, $attachable->project_id),
+            $attachable instanceof Message => ($conversation = Conversation::find($attachable->conversation_id)) !== null
+                && $conversation->canAccess($user),
+            default => false,
+        };
+    }
+
+    private function canSeeProject(User $user, ?int $projectId): bool
+    {
+        if ($user->isTeam()) {
+            return true;
+        }
+
+        if ($projectId === null) {
+            return false;
+        }
+
+        return Project::where('id', $projectId)
+            ->where('client_id', $user->client_id)
+            ->exists();
+    }
+}

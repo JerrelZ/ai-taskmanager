@@ -151,6 +151,19 @@
                                         </div>
                                     @endif
                                 @endif
+
+                                @if ($message->attachments->isNotEmpty())
+                                    <div class="mt-3 flex flex-wrap gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                                        @foreach ($message->attachments as $attachment)
+                                            <a href="{{ route('attachments.download', $attachment) }}"
+                                                class="inline-flex items-center gap-2 rounded-lg border border-zinc-200 px-2 py-1 text-xs text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                                                <flux:icon :name="$attachment->isImage() ? 'photo' : 'paper-clip'" class="size-4 text-zinc-400" />
+                                                <span class="max-w-[12rem] truncate">{{ $attachment->filename }}</span>
+                                                <span class="text-zinc-400">{{ $attachment->humanSize() }}</span>
+                                            </a>
+                                        @endforeach
+                                    </div>
+                                @endif
                             </flux:card>
                         @endforeach
                     </div>
