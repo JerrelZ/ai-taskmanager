@@ -10,6 +10,8 @@
                     <span class="flex size-7 items-center justify-center rounded-full bg-brand-600 font-display text-lg leading-none text-white">t</span>
                     <span class="font-display text-2xl leading-none text-zinc-900 dark:text-zinc-50">tasks</span>
                 </a>
+                <flux:spacer />
+                <livewire:notification-bell />
                 <flux:sidebar.collapse class="lg:hidden" />
             </flux:sidebar.header>
 
@@ -76,6 +78,8 @@
             <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="left" />
 
             <flux:spacer />
+
+            <livewire:notification-bell />
 
             <flux:dropdown position="top" align="end">
                 <flux:profile

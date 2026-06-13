@@ -103,6 +103,9 @@
                                     <flux:badge as="a" :href="route('tickets.index')" wire:navigate size="sm" color="emerald" icon="ticket">
                                         {{ $this->threadTicket->identifier() }}
                                     </flux:badge>
+                                    <flux:button wire:click="openClaudeCodePrompt" variant="subtle" size="sm" icon="command-line">
+                                        {{ __('Claude Code') }}
+                                    </flux:button>
                                 @else
                                     <flux:button wire:click="openTicketModal" variant="subtle" size="sm" icon="ticket">
                                         {{ __('Maak ticket') }}
@@ -292,6 +295,28 @@
                 </div>
             @endif
         </div>
+    @endif
+
+    {{-- Claude Code handoff --}}
+    @if (auth()->user()->isTeam())
+        <flux:modal name="claude-code-prompt" class="md:w-[40rem]">
+            <div class="flex flex-col gap-4" x-data="{ copied: false }">
+                <div>
+                    <flux:heading size="lg">{{ __('Prompt voor Claude Code') }}</flux:heading>
+                    <flux:text class="mt-1 text-sm text-zinc-500">{{ __('Kopieer dit en plak het in Claude Code in de repo van het project.') }}</flux:text>
+                </div>
+
+                <flux:textarea readonly rows="14" wire:model="claudeCodePrompt" class="font-mono text-xs" x-ref="prompt" />
+
+                <div class="flex justify-end">
+                    <flux:button type="button" variant="primary" icon="clipboard"
+                        x-on:click="navigator.clipboard.writeText($refs.prompt.value); copied = true; setTimeout(() => copied = false, 2000)">
+                        <span x-show="!copied">{{ __('Kopiëren') }}</span>
+                        <span x-show="copied" x-cloak>{{ __('Gekopieerd!') }}</span>
+                    </flux:button>
+                </div>
+            </div>
+        </flux:modal>
     @endif
 
     {{-- Manage reply templates --}}

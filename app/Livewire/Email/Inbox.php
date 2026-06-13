@@ -14,6 +14,7 @@ use App\Models\Project;
 use App\Models\ReplyTemplate;
 use App\Models\Task;
 use App\Models\User;
+use App\Notifications\InboxNotification;
 use App\Services\Email\ContactLinkSuggester;
 use App\Services\Email\EmailContextBuilder;
 use App\Services\Email\EmailContextInvestigator;
@@ -88,6 +89,9 @@ class Inbox extends Component
     public string $ticketPriority = 'none';
 
     public ?int $ticketAssigneeId = null;
+
+    // Generated Claude Code prompt for the thread's ticket.
+    public string $claudeCodePrompt = '';
 
     // New reply-template form.
     public string $templateName = '';
@@ -396,6 +400,24 @@ class Inbox extends Component
         }
     }
 
+    /**
+     * Build the Claude Code prompt for the thread's ticket and open the modal.
+     */
+    public function openClaudeCodePrompt(): void
+    {
+        abort_unless(Auth::user()->isTeam(), 403);
+
+        $ticket = $this->threadTicket();
+
+        if ($ticket === null) {
+            return;
+        }
+
+        $ticket->loadMissing('project');
+        $this->claudeCodePrompt = $ticket->claudeCodePrompt();
+        Flux::modal('claude-code-prompt')->show();
+    }
+
     public function createTicket(): void
     {
         abort_unless(Auth::user()->isTeam(), 403);
@@ -476,6 +498,21 @@ class Inbox extends Component
         }
 
         $thread->forceFill(['assignee_id' => $userId])->save();
+
+        // Notify the new assignee (but never yourself).
+        if ($userId !== null && $userId !== Auth::id()) {
+            $assignee = $this->assignableUsers->firstWhere('id', $userId);
+
+            $assignee?->notify(new InboxNotification(
+                title: __('Gesprek toegewezen'),
+                body: __(':project — :subject', [
+                    'project' => $this->project->name,
+                    'subject' => $thread->subject ?: __('(geen onderwerp)'),
+                ]),
+                url: route('projects.inbox', $this->project).'?selectedThreadId='.$thread->id,
+                icon: 'inbox-arrow-down',
+            ));
+        }
 
         unset($this->selectedThread);
         Flux::toast(variant: 'success', text: $userId === null

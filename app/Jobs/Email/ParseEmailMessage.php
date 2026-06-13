@@ -4,6 +4,8 @@ namespace App\Jobs\Email;
 
 use App\Models\EmailMessage;
 use App\Models\EmailThread;
+use App\Models\User;
+use App\Notifications\InboxNotification;
 use App\Services\Email\MailParser;
 use App\Services\Email\RawEmailStore;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -61,6 +63,8 @@ class ParseEmailMessage implements ShouldQueue
             });
 
             CategoriseEmailThread::dispatch($thread->id);
+
+            $this->notifyAssignee($thread, $message);
         } catch (Throwable $e) {
             $this->recordFailure($message, $e);
 
@@ -93,6 +97,26 @@ class ParseEmailMessage implements ShouldQueue
                 'last_message_at' => $parsed['sent_at'] ?? $message->received_at,
             ],
         );
+    }
+
+    /**
+     * Notify the thread's assignee when a new inbound message lands on a thread
+     * they are responsible for.
+     */
+    private function notifyAssignee(EmailThread $thread, EmailMessage $message): void
+    {
+        if ($message->direction !== EmailMessage::DIRECTION_INBOUND || $thread->assignee_id === null) {
+            return;
+        }
+
+        $assignee = User::find($thread->assignee_id);
+
+        $assignee?->notify(new InboxNotification(
+            title: __('Nieuw bericht in toegewezen gesprek'),
+            body: ($message->from_email ?: __('Onbekend')).' — '.($thread->subject ?: __('(geen onderwerp)')),
+            url: route('projects.inbox', $thread->project_id).'?selectedThreadId='.$thread->id,
+            icon: 'envelope',
+        ));
     }
 
     private function refreshThreadAggregates(EmailThread $thread): void

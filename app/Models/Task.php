@@ -79,6 +79,46 @@ class Task extends Model
     }
 
     /**
+     * A ready-to-paste prompt for Claude Code, bundling the project setup, the
+     * ticket and any embedded database context (user ids, etc.).
+     */
+    public function claudeCodePrompt(): string
+    {
+        $project = $this->project;
+        $lines = [];
+
+        if ($project !== null) {
+            $lines[] = "Je werkt aan het project \"{$project->name}\".";
+
+            if (filled($project->repo_path)) {
+                $lines[] = "Repository: {$project->repo_path}";
+            }
+
+            if (filled($project->stack)) {
+                $lines[] = "Stack: {$project->stack}";
+            }
+
+            if (filled($project->context)) {
+                $lines[] = "Conventies: {$project->context}";
+            }
+
+            $lines[] = '';
+        }
+
+        $lines[] = "Ticket {$this->identifier()}: {$this->title}";
+
+        if (filled($this->description)) {
+            $lines[] = '';
+            $lines[] = $this->description;
+        }
+
+        $lines[] = '';
+        $lines[] = 'Pak dit ticket op. Gebruik de hierboven genoemde database-context (ids) waar relevant.';
+
+        return implode("\n", $lines);
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
