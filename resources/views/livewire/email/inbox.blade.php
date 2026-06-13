@@ -1,4 +1,19 @@
-<div class="-m-6 flex h-dvh w-[calc(100%+3rem)] flex-col overflow-hidden lg:-m-8 lg:w-[calc(100%+4rem)]">
+<div class="-m-6 flex h-dvh w-[calc(100%+3rem)] flex-col overflow-hidden lg:-m-8 lg:w-[calc(100%+4rem)]"
+    x-data="{
+        inboxKey(e) {
+            if (e.metaKey || e.ctrlKey || e.altKey) return;
+            if (e.target.closest('input, textarea, [contenteditable], [role=dialog]')) return;
+            const rows = Array.from($el.querySelectorAll('[data-thread-row]'));
+            if (! rows.length) return;
+            const idx = rows.findIndex(r => r.dataset.threadRow == $wire.selectedThreadId);
+            if (e.key === 'j') { e.preventDefault(); (rows[idx + 1] || rows[0]).click(); }
+            else if (e.key === 'k') { e.preventDefault(); (rows[idx - 1] || rows[rows.length - 1]).click(); }
+            else if (e.key === 'r') { e.preventDefault(); $el.querySelector('[data-reply-input]')?.focus(); }
+            else if (e.key === 't') { e.preventDefault(); $wire.openTicketModal(); }
+            else if (e.key === 'e' && $wire.selectedThreadId) { e.preventDefault(); $wire.archiveThread($wire.selectedThreadId); }
+        }
+    }"
+    x-on:keydown.window="inboxKey($event)">
     {{-- Header --}}
     <div class="flex shrink-0 items-center justify-between gap-4 border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
         <div class="flex items-center gap-3">
@@ -250,8 +265,8 @@
                             </div>
 
                             <form wire:submit="sendReply" class="flex flex-col gap-2">
-                                <flux:textarea wire:model="replyBody" rows="3"
-                                    placeholder="{{ __('Typ je antwoord...') }}"
+                                <flux:textarea wire:model="replyBody" rows="3" data-reply-input
+                                    placeholder="{{ __('Typ je antwoord... (r)') }}"
                                     wire:loading.attr="disabled" wire:target="draftReply" />
                                 <div class="flex items-center justify-between">
                                     <flux:text class="text-xs text-zinc-400">
