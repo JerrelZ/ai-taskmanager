@@ -39,6 +39,7 @@ class Task extends Model
 
     protected $fillable = [
         'project_id',
+        'email_thread_id',
         'number',
         'parent_id',
         'title',
@@ -116,6 +117,14 @@ class Task extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * @return BelongsTo<EmailThread, $this>
+     */
+    public function emailThread(): BelongsTo
+    {
+        return $this->belongsTo(EmailThread::class);
     }
 
     /**

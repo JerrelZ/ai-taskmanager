@@ -1,6 +1,6 @@
-<div class="-m-6 flex h-[calc(100%+3rem)] w-[calc(100%+3rem)] flex-1 flex-col overflow-hidden lg:-m-8 lg:h-[calc(100%+4rem)] lg:w-[calc(100%+4rem)]">
+<div class="-m-6 flex h-dvh w-[calc(100%+3rem)] flex-col overflow-hidden lg:-m-8 lg:w-[calc(100%+4rem)]">
     {{-- Header --}}
-    <div class="flex items-center justify-between gap-4 border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
+    <div class="flex shrink-0 items-center justify-between gap-4 border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
         <div class="flex items-center gap-3">
             <flux:button :href="route('projects.board', $project)" wire:navigate variant="ghost" size="sm" icon="arrow-left" inset="left" />
             <span class="size-3 rounded-full bg-{{ $project->color }}-500"></span>
@@ -77,12 +77,45 @@
             {{-- Center: messages of the selected thread --}}
             <div class="flex min-h-0 min-w-0 flex-1 flex-col">
                 @if ($this->selectedThread)
-                    <div class="shrink-0 border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
-                        <flux:heading size="lg">{{ $this->selectedThread->subject ?: __('(geen onderwerp)') }}</flux:heading>
+                    <div class="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
+                        <flux:heading size="lg" class="min-w-0 truncate">{{ $this->selectedThread->subject ?: __('(geen onderwerp)') }}</flux:heading>
+
+                        @if (auth()->user()->isTeam())
+                            <div class="flex shrink-0 items-center gap-2">
+                                {{-- Assign thread to a teammate --}}
+                                <flux:dropdown position="bottom" align="end">
+                                    <flux:button variant="subtle" size="sm" icon="user-circle" icon:trailing="chevron-down">
+                                        {{ $this->selectedThread->assignee?->name ?? __('Niet toegewezen') }}
+                                    </flux:button>
+                                    <flux:menu>
+                                        <flux:menu.item wire:click="assignThread(null)" icon="x-mark">{{ __('Niet toegewezen') }}</flux:menu.item>
+                                        <flux:menu.separator />
+                                        @foreach ($this->assignableUsers as $user)
+                                            <flux:menu.item wire:click="assignThread({{ $user->id }})"
+                                                :icon="$this->selectedThread->assignee_id === $user->id ? 'check' : null">
+                                                {{ $user->name }}
+                                            </flux:menu.item>
+                                        @endforeach
+                                    </flux:menu>
+                                </flux:dropdown>
+
+                                @if ($this->threadTicket)
+                                    <flux:badge as="a" :href="route('tickets.index')" wire:navigate size="sm" color="emerald" icon="ticket">
+                                        {{ $this->threadTicket->identifier() }}
+                                    </flux:badge>
+                                @else
+                                    <flux:button wire:click="openTicketModal" variant="subtle" size="sm" icon="ticket">
+                                        {{ __('Maak ticket') }}
+                                    </flux:button>
+                                @endif
+                            </div>
+                        @endif
                     </div>
 
+                    {{-- Newest first: only the display order is reversed; the underlying
+                         chronological collection still drives reply/sender logic. --}}
                     <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
-                        @foreach ($this->selectedThread->messages as $message)
+                        @foreach ($this->selectedThread->messages->reverse() as $message)
                             <flux:card wire:key="msg-{{ $message->id }}" @class(['ml-8' => $message->direction === 'outbound'])>
                                 <div class="mb-2 flex items-center justify-between gap-2">
                                     <div class="text-sm">
@@ -121,9 +154,36 @@
 
                     @if (auth()->user()->isTeam())
                         <div class="shrink-0 border-t border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                            {{-- Quick actions: AI draft + templates --}}
+                            <div class="mb-2 flex items-center gap-2">
+                                <flux:button wire:click="draftReply" variant="subtle" size="xs" icon="sparkles"
+                                    wire:loading.attr="disabled" wire:target="draftReply">
+                                    <span wire:loading.remove wire:target="draftReply">{{ __('AI-concept') }}</span>
+                                    <span wire:loading wire:target="draftReply">{{ __('Genereren...') }}</span>
+                                </flux:button>
+
+                                <flux:dropdown position="top" align="start">
+                                    <flux:button variant="subtle" size="xs" icon="chat-bubble-bottom-center-text" icon:trailing="chevron-up">
+                                        {{ __('Sjablonen') }}
+                                    </flux:button>
+                                    <flux:menu>
+                                        @forelse ($this->replyTemplates as $template)
+                                            <flux:menu.item wire:click="insertTemplate({{ $template->id }})">{{ $template->name }}</flux:menu.item>
+                                        @empty
+                                            <flux:menu.item disabled>{{ __('Nog geen sjablonen') }}</flux:menu.item>
+                                        @endforelse
+                                        <flux:menu.separator />
+                                        <flux:menu.item x-on:click="$flux.modal('reply-templates').show()" icon="cog-6-tooth">
+                                            {{ __('Sjablonen beheren') }}
+                                        </flux:menu.item>
+                                    </flux:menu>
+                                </flux:dropdown>
+                            </div>
+
                             <form wire:submit="sendReply" class="flex flex-col gap-2">
-                                <flux:textarea wire:model="replyBody" rows="2"
-                                    placeholder="{{ __('Typ je antwoord...') }}" />
+                                <flux:textarea wire:model="replyBody" rows="3"
+                                    placeholder="{{ __('Typ je antwoord...') }}"
+                                    wire:loading.attr="disabled" wire:target="draftReply" />
                                 <div class="flex items-center justify-between">
                                     <flux:text class="text-xs text-zinc-400">
                                         {{ __('Antwoord aan :naam', ['naam' => $this->selectedThread->messages->where('direction', 'inbound')->last()?->from_email ?? __('afzender')]) }}
@@ -147,6 +207,77 @@
             @if ($this->selectedThread)
                 <div class="w-80 shrink-0 overflow-y-auto border-l border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-900/30"
                     wire:key="context-{{ $this->selectedThread->id }}" wire:init="loadContext">
+
+                    {{-- Sender ↔ external database link --}}
+                    @if (auth()->user()->isTeam() && $this->account()?->external_db_dsn && $this->senderForLink())
+                        <div class="mb-4 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+                            <flux:heading size="sm" class="mb-2 flex items-center gap-2">
+                                <flux:icon name="identification" class="size-4" /> {{ __('Gekoppeld contact') }}
+                            </flux:heading>
+
+                            @if ($this->linkedContact)
+                                @php($row = $this->linkedContactRow)
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <div class="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                            {{ $this->linkedContact->label ?: $this->linkedContact->external_id }}
+                                        </div>
+                                        <div class="text-[11px] text-zinc-400">
+                                            {{ $this->linkedContact->external_table }} · {{ $this->linkedContact->external_id_column }}={{ $this->linkedContact->external_id }}
+                                        </div>
+                                    </div>
+                                    <flux:button wire:click="unlinkContact" variant="subtle" size="xs" icon="x-mark"
+                                        :tooltip="__('Ontkoppelen')" />
+                                </div>
+
+                                @if ($row)
+                                    <dl class="mt-2 space-y-0.5 border-t border-zinc-100 pt-2 text-xs dark:border-zinc-800">
+                                        @foreach (array_slice($row['fields'], 0, 8, true) as $key => $value)
+                                            <div class="flex justify-between gap-2">
+                                                <dt class="shrink-0 text-zinc-400">{{ $key }}</dt>
+                                                <dd class="truncate text-zinc-700 dark:text-zinc-300">{{ \Illuminate\Support\Str::limit((string) $value, 40) }}</dd>
+                                            </div>
+                                        @endforeach
+                                    </dl>
+                                @else
+                                    <flux:text class="mt-2 text-xs text-zinc-400">{{ __('Rij niet gevonden in de database.') }}</flux:text>
+                                @endif
+                            @elseif ($showLinkPanel)
+                                @php($suggestions = $this->contactSuggestions)
+                                @if (count($suggestions) > 0)
+                                    <flux:text class="mb-2 text-xs text-zinc-500">{{ __('Suggesties voor :email', ['email' => $this->senderForLink()]) }}</flux:text>
+                                    <div class="space-y-1">
+                                        @foreach ($suggestions as $s)
+                                            <button type="button" wire:key="sugg-{{ $s['table'] }}-{{ $s['id'] }}"
+                                                wire:click="linkContact(@js($s['table']), @js($s['id_column']), @js($s['id']), @js($s['label']))"
+                                                class="block w-full rounded border border-zinc-200 px-2 py-1.5 text-left text-xs transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                                                <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $s['label'] }}</span>
+                                                <span class="text-zinc-400"> · {{ $s['table'] }}</span>
+                                                <div class="truncate text-[11px] text-zinc-400">{{ $s['preview'] }}</div>
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <flux:text class="mb-2 text-xs text-zinc-500">{{ __('Geen automatische match gevonden. Koppel handmatig:') }}</flux:text>
+                                @endif
+
+                                {{-- Manual fallback --}}
+                                <form wire:submit="linkManual" class="mt-3 space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                                    <flux:input wire:model="manualTable" size="sm" :placeholder="__('tabel (bv. customers)')" />
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <flux:input wire:model="manualIdColumn" size="sm" :placeholder="__('id-kolom')" />
+                                        <flux:input wire:model="manualId" size="sm" :placeholder="__('waarde')" />
+                                    </div>
+                                    <flux:button type="submit" variant="primary" size="xs" class="w-full">{{ __('Handmatig koppelen') }}</flux:button>
+                                </form>
+                            @else
+                                <flux:button wire:click="$set('showLinkPanel', true)" variant="subtle" size="xs" icon="link" class="w-full">
+                                    {{ __('Koppel afzender') }}
+                                </flux:button>
+                            @endif
+                        </div>
+                    @endif
+
                     <flux:heading size="sm" class="mb-3 flex items-center gap-2">
                         <flux:icon name="sparkles" class="size-4" /> {{ __('Context') }}
                     </flux:heading>
@@ -161,6 +292,100 @@
                 </div>
             @endif
         </div>
+    @endif
+
+    {{-- Manage reply templates --}}
+    @if (auth()->user()->isTeam())
+        <flux:modal name="reply-templates" class="md:w-[36rem]">
+            <div class="flex flex-col gap-4">
+                <div>
+                    <flux:heading size="lg">{{ __('Antwoordsjablonen') }}</flux:heading>
+                    <flux:text class="mt-1 text-sm text-zinc-500">
+                        {{ __('Variabelen:') }}
+                        <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">@{{sender}}</code>,
+                        <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">@{{contact}}</code>,
+                        <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">@{{agent}}</code>.
+                    </flux:text>
+                </div>
+
+                @if ($this->replyTemplates->isNotEmpty())
+                    <div class="divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-700">
+                        @foreach ($this->replyTemplates as $template)
+                            <div class="flex items-start justify-between gap-3 p-3">
+                                <div class="min-w-0">
+                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                        {{ $template->name }}
+                                        @unless ($template->project_id)
+                                            <flux:badge size="sm" color="zinc">{{ __('Globaal') }}</flux:badge>
+                                        @endunless
+                                    </div>
+                                    <div class="line-clamp-2 text-xs text-zinc-500">{{ $template->body }}</div>
+                                </div>
+                                @if ($template->project_id)
+                                    <flux:button wire:click="deleteTemplate({{ $template->id }})" variant="subtle" size="xs" icon="trash"
+                                        :tooltip="__('Verwijderen')" />
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
+                <form wire:submit="saveTemplate" class="flex flex-col gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                    <flux:input wire:model="templateName" :label="__('Naam')" placeholder="{{ __('Bijv. Ontvangstbevestiging') }}" />
+                    <flux:textarea wire:model="templateBody" rows="4" :label="__('Inhoud')" :placeholder="__('Beste klant, bedankt voor je bericht...')" />
+                    <div class="flex justify-end">
+                        <flux:button type="submit" variant="primary" size="sm" icon="plus">{{ __('Sjabloon toevoegen') }}</flux:button>
+                    </div>
+                </form>
+            </div>
+        </flux:modal>
+    @endif
+
+    {{-- Create ticket from the selected thread --}}
+    @if (auth()->user()->isTeam())
+        <flux:modal name="create-ticket" class="md:w-[34rem]">
+            <form wire:submit="createTicket" class="flex flex-col gap-4">
+                <flux:heading size="lg">{{ __('Ticket aanmaken') }}</flux:heading>
+
+                <flux:input wire:model="ticketTitle" :label="__('Titel')" />
+
+                <div>
+                    <div class="mb-1 flex items-center justify-between">
+                        <flux:label>{{ __('Omschrijving') }}</flux:label>
+                        @if ($this->account()?->external_db_dsn)
+                            <flux:button wire:click="enrichTicketContext" type="button" variant="subtle" size="xs" icon="sparkles"
+                                wire:loading.attr="disabled" wire:target="enrichTicketContext">
+                                <span wire:loading.remove wire:target="enrichTicketContext">{{ __('AI-context uit database') }}</span>
+                                <span wire:loading wire:target="enrichTicketContext">{{ __('Database onderzoeken...') }}</span>
+                            </flux:button>
+                        @endif
+                    </div>
+                    <flux:textarea wire:model="ticketDescription" rows="8"
+                        wire:loading.attr="disabled" wire:target="enrichTicketContext" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <flux:select wire:model="ticketPriority" :label="__('Prioriteit')">
+                        @foreach (\App\Enums\TaskPriority::cases() as $priority)
+                            <flux:select.option :value="$priority->value">{{ $priority->label() }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:select wire:model="ticketAssigneeId" :label="__('Toegewezen aan')" :placeholder="__('Niemand')">
+                        <flux:select.option :value="null">{{ __('Niemand') }}</flux:select.option>
+                        @foreach ($this->assignableUsers as $user)
+                            <flux:select.option :value="$user->id">{{ $user->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <flux:modal.close>
+                        <flux:button variant="ghost">{{ __('Annuleren') }}</flux:button>
+                    </flux:modal.close>
+                    <flux:button type="submit" variant="primary" icon="ticket">{{ __('Ticket aanmaken') }}</flux:button>
+                </div>
+            </form>
+        </flux:modal>
     @endif
 
     {{-- Account settings --}}

@@ -31,6 +31,7 @@ class EmailThread extends Model
     protected $fillable = [
         'email_account_id',
         'project_id',
+        'assignee_id',
         'subject',
         'thread_key',
         'ai_category',
@@ -83,6 +84,14 @@ class EmailThread extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assignee_id');
     }
 
     /**

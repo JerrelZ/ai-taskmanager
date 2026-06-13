@@ -3,6 +3,7 @@
 namespace App\Services\Email;
 
 use App\Models\EmailAccount;
+use App\Models\EmailContactLink;
 use App\Models\EmailThread;
 use App\Models\Project;
 use Illuminate\Support\Facades\Process;
@@ -16,7 +17,10 @@ use Illuminate\Support\Str;
  */
 class EmailContextBuilder
 {
-    public function __construct(private readonly ExternalProjectDb $externalDb) {}
+    public function __construct(
+        private readonly ExternalProjectDb $externalDb,
+        private readonly ContactLinkSuggester $linkSuggester,
+    ) {}
 
     public function build(EmailThread $thread): string
     {
@@ -103,7 +107,29 @@ class EmailContextBuilder
 
         $lines = ['## Projectdatabase'];
 
+        // A confirmed sender→row link is authoritative; use it instead of guessing.
+        $link = $senderEmail !== null
+            ? EmailContactLink::where('email_account_id', $account->id)->where('email', $senderEmail)->first()
+            : null;
+
         try {
+            if ($link !== null) {
+                $resolved = $this->linkSuggester->resolve($link);
+
+                $lines[] = "### Gekoppeld contact ({$link->external_table})";
+
+                if ($resolved !== null) {
+                    $lines[] = "- **{$resolved['label']}**";
+                    foreach (array_slice($resolved['fields'], 0, 10, true) as $key => $value) {
+                        $lines[] = "  - {$key}: ".Str::limit((string) $value, 120);
+                    }
+                } else {
+                    $lines[] = "- _Gekoppelde rij ({$link->external_id_column}={$link->external_id}) niet gevonden._";
+                }
+
+                return implode("\n", $lines)."\n";
+            }
+
             $tables = collect($this->externalDb->select($account, 'SHOW TABLES'))
                 ->map(fn (object $row): string => (string) collect((array) $row)->first())
                 ->all();
@@ -118,7 +144,7 @@ class EmailContextBuilder
 
             if ($matches !== []) {
                 $lines[] = '';
-                $lines[] = "### Gevonden voor {$senderEmail}";
+                $lines[] = "### Mogelijke matches voor {$senderEmail}";
                 foreach ($matches as $match) {
                     $lines[] = "- **{$match['table']}**: ".Str::limit($match['row'], 200);
                 }
