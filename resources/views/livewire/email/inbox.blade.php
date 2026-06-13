@@ -451,9 +451,35 @@
                 <flux:input wire:model="syncDays" type="number" min="1" max="3650" :label="__('E-mails ophalen tot (dagen terug)')"
                     placeholder="30" :description="__('Bij het eerste ophalen worden alleen e-mails vanaf dit aantal dagen terug binnengehaald. Laat leeg voor de volledige geschiedenis.')" />
 
+                {{-- External (read-only) database --}}
+                <flux:separator :text="__('Externe database (read-only)')" />
+                <div class="grid grid-cols-3 gap-3">
+                    <flux:input wire:model="dbHost" :label="__('DB-host')" class="col-span-2" placeholder="127.0.0.1" />
+                    <flux:input wire:model="dbPort" type="number" :label="__('Poort')" />
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <flux:input wire:model="dbDatabase" :label="__('Database')" placeholder="forge" />
+                    <flux:input wire:model="dbUsername" :label="__('Gebruiker')" placeholder="reader" />
+                </div>
+                <flux:input wire:model="dbPassword" type="password" :label="__('DB-wachtwoord')"
+                    :description="$this->account()?->external_db_dsn ? __('Laat leeg om het huidige wachtwoord te behouden.') : null" />
+                <flux:button wire:click="testExternalDb" type="button" variant="ghost" size="sm" icon="circle-stack" class="self-start">
+                    {{ __('Database testen') }}
+                </flux:button>
+
+                {{-- External support API --}}
+                <flux:separator :text="__('Support-API (optioneel)')" />
+                <flux:input wire:model="apiBaseUrl" :label="__('API-basis-URL')" placeholder="https://boltool.test" />
+                <flux:input wire:model="apiToken" type="password" :label="__('API-token')"
+                    :description="$this->account()?->external_api_token ? __('Laat leeg om het huidige token te behouden.') : null" />
+                <flux:button wire:click="testExternalApi" type="button" variant="ghost" size="sm" icon="signal" class="self-start">
+                    {{ __('API testen') }}
+                </flux:button>
+
+                <flux:separator />
                 <div class="flex items-center justify-between">
                     <flux:button wire:click="testConnection" type="button" variant="ghost" size="sm" icon="signal">
-                        {{ __('Verbinding testen') }}
+                        {{ __('IMAP testen') }}
                     </flux:button>
                     <flux:button type="submit" variant="primary">{{ __('Opslaan') }}</flux:button>
                 </div>
