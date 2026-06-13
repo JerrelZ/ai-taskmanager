@@ -40,6 +40,8 @@ class EmailThread extends Model
         'last_message_at',
         'message_count',
         'is_read',
+        'archived_at',
+        'snoozed_until',
     ];
 
     /**
@@ -52,6 +54,8 @@ class EmailThread extends Model
             'last_message_at' => 'datetime',
             'message_count' => 'integer',
             'is_read' => 'boolean',
+            'archived_at' => 'datetime',
+            'snoozed_until' => 'datetime',
         ];
     }
 

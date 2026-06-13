@@ -46,6 +46,9 @@ class Inbox extends Component
     #[Url(as: 'cat')]
     public ?string $categoryFilter = null;
 
+    #[Url]
+    public bool $showArchived = false;
+
     /** Markdown context for the selected thread, lazily built. */
     public ?string $context = null;
 
@@ -144,6 +147,14 @@ class Inbox extends Component
             ->withCount('messages')
             ->orderByDesc('last_message_at');
 
+        if ($this->showArchived) {
+            $query->whereNotNull('archived_at');
+        } else {
+            // Hide archived and currently-snoozed threads from the working inbox.
+            $query->whereNull('archived_at')
+                ->where(fn ($q) => $q->whereNull('snoozed_until')->orWhere('snoozed_until', '<=', now()));
+        }
+
         if ($this->categoryFilter !== null) {
             $query->where('ai_category', $this->categoryFilter);
         }
@@ -170,7 +181,7 @@ class Inbox extends Component
         $this->selectedThreadId = $threadId;
         $this->context = null;
         $this->showLinkPanel = false;
-        unset($this->linkedContact, $this->linkedContactRow, $this->contactSuggestions, $this->threadTicket);
+        unset($this->linkedContact, $this->linkedContactRow, $this->contactSuggestions, $this->threadTicket, $this->senderHistory);
 
         $thread = $this->selectedThread();
 
@@ -339,6 +350,78 @@ class Inbox extends Component
         unset($this->linkedContact, $this->linkedContactRow, $this->contactSuggestions);
         $this->context = null;
         $this->showLinkPanel = false;
+    }
+
+    public function archiveThread(int $threadId): void
+    {
+        abort_unless(Auth::user()->isTeam(), 403);
+
+        EmailThread::where('project_id', $this->project->id)->whereKey($threadId)
+            ->update(['archived_at' => now(), 'snoozed_until' => null]);
+
+        if ($this->selectedThreadId === $threadId) {
+            $this->selectedThreadId = null;
+        }
+
+        unset($this->groupedThreads, $this->selectedThread);
+        Flux::toast(variant: 'success', text: __('Gesprek gearchiveerd.'));
+    }
+
+    public function unarchiveThread(int $threadId): void
+    {
+        abort_unless(Auth::user()->isTeam(), 403);
+
+        EmailThread::where('project_id', $this->project->id)->whereKey($threadId)
+            ->update(['archived_at' => null]);
+
+        unset($this->groupedThreads);
+        Flux::toast(variant: 'success', text: __('Gesprek teruggehaald.'));
+    }
+
+    public function snoozeThread(int $threadId, string $preset): void
+    {
+        abort_unless(Auth::user()->isTeam(), 403);
+
+        $until = match ($preset) {
+            'hours' => now()->addHours(3),
+            'tomorrow' => now()->addDay()->setTime(8, 0),
+            'week' => now()->addWeek()->setTime(8, 0),
+            default => now()->addDay(),
+        };
+
+        EmailThread::where('project_id', $this->project->id)->whereKey($threadId)
+            ->update(['snoozed_until' => $until, 'archived_at' => null]);
+
+        if ($this->selectedThreadId === $threadId) {
+            $this->selectedThreadId = null;
+        }
+
+        unset($this->groupedThreads, $this->selectedThread);
+        Flux::toast(variant: 'success', text: __('Gesnoozed tot :when.', ['when' => $until->translatedFormat('D d M, H:i')]));
+    }
+
+    /**
+     * Earlier conversations from the same sender in this project (a mini timeline).
+     *
+     * @return Collection<int, EmailThread>
+     */
+    #[Computed]
+    public function senderHistory(): Collection
+    {
+        $email = $this->senderEmail();
+
+        if ($email === null) {
+            return collect();
+        }
+
+        return EmailThread::query()
+            ->where('project_id', $this->project->id)
+            ->where('id', '!=', $this->selectedThreadId)
+            ->whereHas('messages', fn ($q) => $q->where('from_email', $email))
+            ->withCount('messages')
+            ->orderByDesc('last_message_at')
+            ->limit(6)
+            ->get();
     }
 
     /**

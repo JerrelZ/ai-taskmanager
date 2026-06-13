@@ -18,6 +18,13 @@
                 </flux:select>
             @endif
 
+            @if ($this->account())
+                <flux:button wire:click="$toggle('showArchived')" size="sm"
+                    :variant="$showArchived ? 'filled' : 'subtle'" icon="archive-box">
+                    {{ $showArchived ? __('Archief') : __('Inbox') }}
+                </flux:button>
+            @endif
+
             @if (auth()->user()->isTeam())
                 <flux:button wire:click="openSettings" variant="subtle" size="sm" icon="cog-6-tooth" />
             @endif
@@ -110,6 +117,23 @@
                                     <flux:button wire:click="openTicketModal" variant="subtle" size="sm" icon="ticket">
                                         {{ __('Maak ticket') }}
                                     </flux:button>
+                                @endif
+
+                                {{-- Snooze --}}
+                                <flux:dropdown position="bottom" align="end">
+                                    <flux:button variant="subtle" size="sm" icon="clock" />
+                                    <flux:menu>
+                                        <flux:menu.item wire:click="snoozeThread({{ $this->selectedThread->id }}, 'hours')">{{ __('Over 3 uur') }}</flux:menu.item>
+                                        <flux:menu.item wire:click="snoozeThread({{ $this->selectedThread->id }}, 'tomorrow')">{{ __('Morgenochtend') }}</flux:menu.item>
+                                        <flux:menu.item wire:click="snoozeThread({{ $this->selectedThread->id }}, 'week')">{{ __('Volgende week') }}</flux:menu.item>
+                                    </flux:menu>
+                                </flux:dropdown>
+
+                                {{-- Archive / restore --}}
+                                @if ($this->selectedThread->archived_at)
+                                    <flux:button wire:click="unarchiveThread({{ $this->selectedThread->id }})" variant="subtle" size="sm" icon="arrow-uturn-left" :tooltip="__('Terughalen')" />
+                                @else
+                                    <flux:button wire:click="archiveThread({{ $this->selectedThread->id }})" variant="subtle" size="sm" icon="archive-box" :tooltip="__('Archiveren')" />
                                 @endif
                             </div>
                         @endif
@@ -291,6 +315,27 @@
                                     {{ __('Koppel afzender') }}
                                 </flux:button>
                             @endif
+                        </div>
+                    @endif
+
+                    {{-- Sender history (mini timeline) --}}
+                    @if ($this->senderHistory->isNotEmpty())
+                        <div class="mb-4">
+                            <flux:heading size="sm" class="mb-2 flex items-center gap-2">
+                                <flux:icon name="clock" class="size-4" /> {{ __('Eerdere gesprekken') }}
+                            </flux:heading>
+                            <div class="space-y-1">
+                                @foreach ($this->senderHistory as $past)
+                                    <button type="button" wire:key="hist-{{ $past->id }}" wire:click="selectThread({{ $past->id }})"
+                                        class="block w-full rounded border border-zinc-200 px-2 py-1.5 text-left text-xs transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                                        <div class="truncate font-medium text-zinc-800 dark:text-zinc-100">{{ $past->subject ?: __('(geen onderwerp)') }}</div>
+                                        <div class="flex justify-between text-[11px] text-zinc-400">
+                                            <span>{{ $past->messages_count }} {{ __('berichten') }}</span>
+                                            <span>{{ $past->last_message_at?->diffForHumans() }}</span>
+                                        </div>
+                                    </button>
+                                @endforeach
+                            </div>
                         </div>
                     @endif
 
