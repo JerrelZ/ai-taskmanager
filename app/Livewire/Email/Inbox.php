@@ -6,6 +6,8 @@ use App\Enums\EmailCategory;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\UserRole;
+use App\Jobs\RunClaudeCodeForTask;
+use App\Models\ClaudeCodeRun;
 use App\Models\EmailAccount;
 use App\Models\EmailContactLink;
 use App\Models\EmailMessage;
@@ -569,6 +571,52 @@ class Inbox extends Component
         $ticket->loadMissing('project');
         $this->claudeCodePrompt = $ticket->claudeCodePrompt();
         Flux::modal('claude-code-prompt')->show();
+    }
+
+    /**
+     * Dispatch a headless Claude Code run for the thread's ticket against the
+     * project repository, then show its (polling) result.
+     */
+    public function runClaudeCode(): void
+    {
+        abort_unless(Auth::user()->isTeam(), 403);
+
+        $ticket = $this->threadTicket();
+
+        if ($ticket === null) {
+            return;
+        }
+
+        $ticket->loadMissing('project');
+
+        if (blank($ticket->project?->repo_path)) {
+            Flux::toast(variant: 'warning', text: __('Dit project heeft geen repository-pad ingesteld.'));
+
+            return;
+        }
+
+        $run = ClaudeCodeRun::create([
+            'task_id' => $ticket->id,
+            'requested_by' => Auth::id(),
+            'status' => ClaudeCodeRun::STATUS_PENDING,
+            'prompt' => $ticket->claudeCodePrompt(),
+        ]);
+
+        RunClaudeCodeForTask::dispatch($run->id);
+
+        Flux::modal('claude-code-run')->show();
+        Flux::toast(variant: 'success', text: __('Claude Code gestart — dit kan even duren.'));
+    }
+
+    public function latestClaudeRun(): ?ClaudeCodeRun
+    {
+        $ticket = $this->threadTicket();
+
+        if ($ticket === null) {
+            return null;
+        }
+
+        return ClaudeCodeRun::where('task_id', $ticket->id)->latest()->first();
     }
 
     public function createTicket(): void

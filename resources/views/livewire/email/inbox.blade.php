@@ -154,9 +154,15 @@
                                     <flux:badge as="a" :href="route('tickets.index')" wire:navigate size="sm" color="emerald" icon="ticket">
                                         {{ $this->threadTicket->identifier() }}
                                     </flux:badge>
-                                    <flux:button wire:click="openClaudeCodePrompt" variant="subtle" size="sm" icon="command-line">
-                                        {{ __('Claude Code') }}
-                                    </flux:button>
+                                    <flux:dropdown position="bottom" align="end">
+                                        <flux:button variant="subtle" size="sm" icon="command-line" icon:trailing="chevron-down">
+                                            {{ __('Claude Code') }}
+                                        </flux:button>
+                                        <flux:menu>
+                                            <flux:menu.item wire:click="runClaudeCode" icon="play">{{ __('Uitvoeren in repo') }}</flux:menu.item>
+                                            <flux:menu.item wire:click="openClaudeCodePrompt" icon="clipboard">{{ __('Prompt kopiëren') }}</flux:menu.item>
+                                        </flux:menu>
+                                    </flux:dropdown>
                                 @else
                                     <flux:button wire:click="openTicketModal" variant="subtle" size="sm" icon="ticket">
                                         {{ __('Maak ticket') }}
@@ -416,6 +422,41 @@
                         <span x-show="!copied">{{ __('Kopiëren') }}</span>
                         <span x-show="copied" x-cloak>{{ __('Gekopieerd!') }}</span>
                     </flux:button>
+                </div>
+            </div>
+        </flux:modal>
+    @endif
+
+    {{-- Claude Code run result --}}
+    @if (auth()->user()->isTeam())
+        <flux:modal name="claude-code-run" class="md:w-[44rem]">
+            @php($run = $this->latestClaudeRun())
+            <div class="flex flex-col gap-4" @if ($run?->isRunning()) wire:poll.3s @endif>
+                <div class="flex items-center justify-between">
+                    <flux:heading size="lg">{{ __('Claude Code') }}</flux:heading>
+                    @if ($run)
+                        <flux:badge size="sm" :color="match ($run->status) {
+                            'completed' => 'emerald', 'failed' => 'red', default => 'amber',
+                        }">{{ ucfirst($run->status) }}</flux:badge>
+                    @endif
+                </div>
+
+                @if ($run === null)
+                    <flux:text class="text-sm text-zinc-500">{{ __('Nog geen run voor dit ticket.') }}</flux:text>
+                @elseif ($run->isRunning())
+                    <div class="flex items-center gap-2 text-sm text-zinc-500">
+                        <flux:icon.loading class="size-4" /> {{ __('Claude Code analyseert de repository...') }}
+                    </div>
+                @elseif ($run->status === 'failed')
+                    <flux:callout variant="danger" icon="exclamation-triangle">{{ $run->error }}</flux:callout>
+                @else
+                    <div class="max-h-[28rem] overflow-y-auto whitespace-pre-wrap rounded-lg border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs leading-relaxed text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">{{ $run->output }}</div>
+                    <flux:text class="text-xs text-zinc-400">{{ __('Afgerond :when', ['when' => $run->finished_at?->diffForHumans()]) }}</flux:text>
+                @endif
+
+                <div class="flex justify-end">
+                    <flux:button wire:click="runClaudeCode" variant="ghost" size="sm" icon="arrow-path"
+                        wire:loading.attr="disabled" wire:target="runClaudeCode">{{ __('Opnieuw uitvoeren') }}</flux:button>
                 </div>
             </div>
         </flux:modal>

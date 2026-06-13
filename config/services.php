@@ -33,6 +33,13 @@ return [
         'log_only' => env('EMAIL_LOG_ONLY', false),
     ],
 
+    'claude_code' => [
+        // Headless Claude Code runs against a project's repository for a ticket.
+        'binary' => env('CLAUDE_CODE_BINARY', 'claude'),
+        'permission_mode' => env('CLAUDE_CODE_PERMISSION_MODE', 'plan'), // read-only by default
+        'timeout' => (int) env('CLAUDE_CODE_TIMEOUT', 600),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
