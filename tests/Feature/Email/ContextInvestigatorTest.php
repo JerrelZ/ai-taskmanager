@@ -104,6 +104,52 @@ it('appends the investigated context to the ticket description', function () {
         ->assertSet('ticketDescription', fn ($value) => str_contains($value, '`users` #8'));
 });
 
+it('prefers the support API tools when an API is configured', function () {
+    config()->set('services.anthropic.key', 'test-key');
+
+    Http::fake([
+        'https://revboost.test/api/internal/v1/*' => Http::response([
+            'data' => ['id' => 8, 'company_name' => 'Just Another Store B.V.', 'unpaid_invoices' => 2],
+        ], 200),
+        'https://api.anthropic.com/*' => Http::sequence()
+            ->push([
+                'stop_reason' => 'tool_use',
+                'content' => [[
+                    'type' => 'tool_use', 'id' => 'tu_1', 'name' => 'customer_summary',
+                    'input' => ['user_id' => '8'],
+                ]],
+            ])
+            ->push([
+                'stop_reason' => 'tool_use',
+                'content' => [[
+                    'type' => 'tool_use', 'id' => 'tu_2', 'name' => 'record_findings',
+                    'input' => [
+                        'summary' => 'Adverteerder met 2 openstaande facturen.',
+                        'entities' => [['table' => 'users', 'id' => '8', 'label' => 'Just Another Store B.V.', 'relevance' => 'afzender']],
+                    ],
+                ]],
+            ]),
+    ]);
+
+    $account = EmailAccount::factory()->create([
+        'external_db_dsn' => ['host' => '127.0.0.1', 'port' => 3306, 'database' => 'revboost', 'username' => 'r', 'password' => 'p'],
+        'external_api_base_url' => 'https://revboost.test',
+        'external_api_token' => 'tok',
+    ]);
+    $thread = EmailThread::factory()->create(['email_account_id' => $account->id, 'project_id' => $account->project_id]);
+    EmailMessage::factory()->create([
+        'email_account_id' => $account->id,
+        'email_thread_id' => $thread->id,
+        'direction' => EmailMessage::DIRECTION_INBOUND,
+        'from_email' => 'thomas@justanotherstore.nl',
+    ]);
+
+    $result = app(EmailContextInvestigator::class)->investigate($thread);
+
+    expect($result['entities'])->toHaveCount(1);
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/api/internal/v1/users/8/summary'));
+});
+
 it('errors gracefully when the project has no external database', function () {
     config()->set('services.anthropic.key', 'test-key');
 

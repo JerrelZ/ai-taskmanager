@@ -25,7 +25,10 @@ class EmailContextInvestigator
     /** Rows returned to the model per query (kept small to bound tokens). */
     private const MAX_ROWS = 40;
 
-    public function __construct(private readonly ExternalProjectDb $externalDb) {}
+    public function __construct(
+        private readonly ExternalProjectDb $externalDb,
+        private readonly ExternalProjectApi $api,
+    ) {}
 
     /**
      * @return array{summary: string, entities: array<int, array{table: string, id: string, label: string, relevance: string}>, markdown: string}
@@ -45,6 +48,8 @@ class EmailContextInvestigator
             throw new RuntimeException('Dit project heeft geen externe database.');
         }
 
+        $hasApi = $this->api->configured($account);
+
         $messages = [[
             'role' => 'user',
             'content' => $this->prompt($thread, $account),
@@ -58,8 +63,8 @@ class EmailContextInvestigator
             ])->timeout(60)->post('https://api.anthropic.com/v1/messages', [
                 'model' => config('services.anthropic.model', 'claude-sonnet-4-6'),
                 'max_tokens' => 1500,
-                'system' => $this->system(),
-                'tools' => $this->tools(),
+                'system' => $this->system($hasApi),
+                'tools' => $this->tools($hasApi),
                 'messages' => $messages,
             ]);
 
@@ -92,6 +97,17 @@ class EmailContextInvestigator
                         'type' => 'tool_result',
                         'tool_use_id' => $block['id'],
                         'content' => $this->runQuery($account, (string) ($block['input']['sql'] ?? '')),
+                    ];
+
+                    continue;
+                }
+
+                // Support-API tools (preferred when configured).
+                if (in_array($block['name'], ['lookup_user_by_email', 'customer_summary', 'customer_revenue', 'customer_invoices'], true)) {
+                    $toolResults[] = [
+                        'type' => 'tool_result',
+                        'tool_use_id' => $block['id'],
+                        'content' => $this->runApiTool($account, $block['name'], (array) ($block['input'] ?? [])),
                     ];
                 }
             }
@@ -131,59 +147,143 @@ class EmailContextInvestigator
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * Call one of the support-API tools and return a JSON string result.
+     *
+     * @param  array<string, mixed>  $input
      */
-    private function tools(): array
+    private function runApiTool($account, string $name, array $input): string
     {
-        return [
-            [
-                'name' => 'query_database',
-                'description' => 'Run a single READ-ONLY SQL statement (SELECT/SHOW/DESCRIBE/EXPLAIN) against the customer database. '
-                    .'Writes are rejected. Start by discovering the schema with "SHOW TABLES" and "DESCRIBE <table>".',
-                'input_schema' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'sql' => ['type' => 'string', 'description' => 'A single read-only SQL statement.'],
-                    ],
-                    'required' => ['sql'],
-                ],
-            ],
-            [
-                'name' => 'record_findings',
-                'description' => 'Record the final structured context once you have gathered enough. Call this exactly once when done.',
-                'input_schema' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'summary' => ['type' => 'string', 'description' => 'A concise Dutch summary of who the sender is and the relevant context.'],
-                        'entities' => [
-                            'type' => 'array',
-                            'description' => 'The concrete database records relevant to this email.',
-                            'items' => [
-                                'type' => 'object',
-                                'properties' => [
-                                    'table' => ['type' => 'string'],
-                                    'id' => ['type' => 'string', 'description' => 'Primary key value as a string.'],
-                                    'label' => ['type' => 'string', 'description' => 'Human-readable name for the record.'],
-                                    'relevance' => ['type' => 'string', 'description' => 'Why this record matters for the email.'],
-                                ],
-                                'required' => ['table', 'id', 'label', 'relevance'],
-                            ],
-                        ],
-                    ],
-                    'required' => ['summary', 'entities'],
-                ],
-            ],
-        ];
+        try {
+            $data = match ($name) {
+                'lookup_user_by_email' => $this->api->lookupUserByEmail($account, (string) ($input['email'] ?? '')),
+                'customer_summary' => $this->api->userSummary($account, (string) ($input['user_id'] ?? '')),
+                'customer_revenue' => $this->api->revenue(
+                    $account,
+                    (string) ($input['user_id'] ?? ''),
+                    (string) ($input['from'] ?? ''),
+                    (string) ($input['to'] ?? ''),
+                    (string) ($input['granularity'] ?? 'day'),
+                ),
+                'customer_invoices' => $this->api->invoices($account, (string) ($input['user_id'] ?? ''), $input['status'] ?? null),
+                default => ['error' => 'unknown tool'],
+            };
+
+            return (string) json_encode($data);
+        } catch (\Throwable $e) {
+            return 'Fout: '.Str::limit($e->getMessage(), 300);
+        }
     }
 
-    private function system(): string
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function tools(bool $hasApi = false): array
     {
-        return 'Je bent een support-analist. Je onderzoekt de externe klantdatabase van een project om de juiste '
+        $tools = [];
+
+        if ($hasApi) {
+            $tools[] = [
+                'name' => 'lookup_user_by_email',
+                'description' => 'PREFERRED. Resolve an email address to a customer via the support API. Returns id, account type and status.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => ['email' => ['type' => 'string']],
+                    'required' => ['email'],
+                ],
+            ];
+            $tools[] = [
+                'name' => 'customer_summary',
+                'description' => 'PREFERRED. Customer-360 summary (profile, status, counts, this-month revenue) from the support API. Pass the user id.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => ['user_id' => ['type' => 'string']],
+                    'required' => ['user_id'],
+                ],
+            ];
+            $tools[] = [
+                'name' => 'customer_revenue',
+                'description' => 'Revenue/commission over a date range from the support API, bucketed by hour/day/month.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'user_id' => ['type' => 'string'],
+                        'from' => ['type' => 'string', 'description' => 'YYYY-MM-DD'],
+                        'to' => ['type' => 'string', 'description' => 'YYYY-MM-DD'],
+                        'granularity' => ['type' => 'string', 'enum' => ['hour', 'day', 'month']],
+                    ],
+                    'required' => ['user_id', 'from', 'to'],
+                ],
+            ];
+            $tools[] = [
+                'name' => 'customer_invoices',
+                'description' => 'Customer invoices and their paid/unpaid status from the support API.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'user_id' => ['type' => 'string'],
+                        'status' => ['type' => 'string', 'enum' => ['pending', 'paid']],
+                    ],
+                    'required' => ['user_id'],
+                ],
+            ];
+        }
+
+        $tools[] = [
+            'name' => 'query_database',
+            'description' => 'Run a single READ-ONLY SQL statement (SELECT/SHOW/DESCRIBE/EXPLAIN) against the customer database. '
+                .'Writes are rejected. Start by discovering the schema with "SHOW TABLES" and "DESCRIBE <table>".',
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'sql' => ['type' => 'string', 'description' => 'A single read-only SQL statement.'],
+                ],
+                'required' => ['sql'],
+            ],
+        ];
+
+        $tools[] = [
+            'name' => 'record_findings',
+            'description' => 'Record the final structured context once you have gathered enough. Call this exactly once when done.',
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'summary' => ['type' => 'string', 'description' => 'A concise Dutch summary of who the sender is and the relevant context.'],
+                    'entities' => [
+                        'type' => 'array',
+                        'description' => 'The concrete database records relevant to this email.',
+                        'items' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'table' => ['type' => 'string'],
+                                'id' => ['type' => 'string', 'description' => 'Primary key value as a string.'],
+                                'label' => ['type' => 'string', 'description' => 'Human-readable name for the record.'],
+                                'relevance' => ['type' => 'string', 'description' => 'Why this record matters for the email.'],
+                            ],
+                            'required' => ['table', 'id', 'label', 'relevance'],
+                        ],
+                    ],
+                ],
+                'required' => ['summary', 'entities'],
+            ],
+        ];
+
+        return $tools;
+    }
+
+    private function system(bool $hasApi = false): string
+    {
+        $apiHint = $hasApi
+            ? ' Dit project heeft een support-API: gebruik bij voorkeur lookup_user_by_email, customer_summary, '
+                .'customer_revenue en customer_invoices (betrouwbare, berekende cijfers). Val alleen terug op '
+                .'query_database voor zaken die de API niet dekt.'
+            : '';
+
+        return 'Je bent een support-analist. Je onderzoekt de externe klantdata van een project om de juiste '
             .'context bij een binnengekomen e-mail te vinden. Werk methodisch: ontdek eerst het schema '
             .'(SHOW TABLES, DESCRIBE), zoek dan de afzender/klant en de meest relevante gerelateerde records '
             .'(bijv. account, bestellingen, facturen, status). Voer alleen read-only queries uit. Verzin geen '
             .'gegevens. Als je genoeg context hebt, roep je record_findings aan met een korte samenvatting en de '
-            .'concrete records (tabel, primaire id, label, relevantie). Houd het beknopt en relevant.';
+            .'concrete records (tabel, primaire id, label, relevantie). Houd het beknopt en relevant.'.$apiHint;
     }
 
     private function prompt(EmailThread $thread, $account): string
