@@ -1,15 +1,18 @@
-<div class="flex h-full w-full flex-1 flex-col gap-6 p-6">
+<div class="flex h-full w-full flex-1 flex-col gap-6 p-4 lg:p-6">
     <div class="flex items-end justify-between gap-4">
         <div>
-            <h1 class="font-display text-4xl leading-none text-zinc-900 dark:text-zinc-50">{{ __('Team & klanten') }}</h1>
+            <h1 class="font-display text-3xl leading-none text-zinc-900 lg:text-4xl dark:text-zinc-50">{{ __('Team & klanten') }}</h1>
             <flux:subheading class="mt-1.5">{{ __('Beheer gebruikers en hun toegang.') }}</flux:subheading>
         </div>
         <flux:modal.trigger name="create-user">
-            <flux:button variant="primary" icon="plus">{{ __('Gebruiker toevoegen') }}</flux:button>
+            <flux:button variant="primary" icon="plus" class="shrink-0">
+                <span class="max-sm:hidden">{{ __('Gebruiker toevoegen') }}</span>
+                <span class="sm:hidden">{{ __('Nieuw') }}</span>
+            </flux:button>
         </flux:modal.trigger>
     </div>
 
-    <div class="overflow-hidden rounded-xl border border-zinc-200 px-4 dark:border-zinc-700">
+    <div class="overflow-x-auto rounded-xl border border-zinc-200 px-4 dark:border-zinc-700">
         <flux:table>
             <flux:table.columns>
                 <flux:table.column>{{ __('Naam') }}</flux:table.column>

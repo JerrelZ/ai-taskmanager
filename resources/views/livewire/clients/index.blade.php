@@ -1,7 +1,7 @@
-<div class="flex h-full w-full flex-1 flex-col gap-6 p-6">
+<div class="flex h-full w-full flex-1 flex-col gap-6 p-4 lg:p-6">
     <div class="flex items-end justify-between gap-4">
         <div>
-            <h1 class="font-display text-4xl leading-none text-zinc-900 dark:text-zinc-50">{{ __('Klanten') }}</h1>
+            <h1 class="font-display text-3xl leading-none text-zinc-900 lg:text-4xl dark:text-zinc-50">{{ __('Klanten') }}</h1>
             <flux:subheading class="mt-1.5">{{ __('Groepeer projecten per klant.') }}</flux:subheading>
         </div>
         <flux:modal.trigger name="create-client">

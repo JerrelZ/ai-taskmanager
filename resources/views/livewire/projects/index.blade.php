@@ -1,7 +1,7 @@
-<div class="flex h-full w-full flex-1 flex-col gap-6 p-6">
-    <div class="flex items-center justify-between">
+<div class="flex h-full w-full flex-1 flex-col gap-6 p-4 lg:p-6">
+    <div class="flex items-center justify-between gap-4">
         <div>
-            <h1 class="font-display text-4xl leading-none text-zinc-900 dark:text-zinc-50">{{ __('Projecten') }}</h1>
+            <h1 class="font-display text-3xl leading-none text-zinc-900 lg:text-4xl dark:text-zinc-50">{{ __('Projecten') }}</h1>
             <flux:subheading class="mt-1.5">{{ __('Kies een project of maak een nieuwe aan.') }}</flux:subheading>
         </div>
 
