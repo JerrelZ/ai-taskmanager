@@ -150,6 +150,38 @@ it('prefers the support API tools when an API is configured', function () {
     Http::assertSent(fn ($request) => str_contains($request->url(), '/api/internal/v1/users/8/summary'));
 });
 
+it('includes a readable attachment as a content block for the AI', function () {
+    config()->set('services.anthropic.key', 'test-key');
+    \Illuminate\Support\Facades\Storage::fake('local');
+
+    Http::fake([
+        'https://api.anthropic.com/*' => Http::response([
+            'stop_reason' => 'tool_use',
+            'content' => [[
+                'type' => 'tool_use', 'id' => 'tu', 'name' => 'record_findings',
+                'input' => ['summary' => 'klaar', 'entities' => []],
+            ]],
+        ], 200),
+    ]);
+
+    $thread = investigatorThread();
+    $message = $thread->messages()->where('direction', EmailMessage::DIRECTION_INBOUND)->first();
+
+    \Illuminate\Support\Facades\Storage::disk('local')->put('att/logo.png', 'PNGDATA');
+    $message->attachments()->create([
+        'disk' => 'local', 'path' => 'att/logo.png', 'filename' => 'logo.png',
+        'mime_type' => 'image/png', 'size' => 7,
+    ]);
+
+    app(EmailContextInvestigator::class)->investigate($thread->fresh());
+
+    Http::assertSent(function ($request) {
+        $blocks = $request->data()['messages'][0]['content'] ?? [];
+
+        return is_array($blocks) && collect($blocks)->contains(fn ($b) => ($b['type'] ?? null) === 'image');
+    });
+});
+
 it('errors gracefully when the project has no external database', function () {
     config()->set('services.anthropic.key', 'test-key');
 

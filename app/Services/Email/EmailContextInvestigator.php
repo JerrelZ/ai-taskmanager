@@ -7,6 +7,7 @@ use App\Models\EmailMessage;
 use App\Models\EmailThread;
 use App\Support\EmailBody;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -52,7 +53,7 @@ class EmailContextInvestigator
 
         $messages = [[
             'role' => 'user',
-            'content' => $this->prompt($thread, $account),
+            'content' => $this->userContent($thread, $account),
         ]];
 
         for ($step = 0; $step < self::MAX_STEPS; $step++) {
@@ -284,6 +285,72 @@ class EmailContextInvestigator
             .'(bijv. account, bestellingen, facturen, status). Voer alleen read-only queries uit. Verzin geen '
             .'gegevens. Als je genoeg context hebt, roep je record_findings aan met een korte samenvatting en de '
             .'concrete records (tabel, primaire id, label, relevantie). Houd het beknopt en relevant.'.$apiHint;
+    }
+
+    /**
+     * Build the first user turn: the text prompt plus any readable attachments
+     * (PDFs, images, text files) from the latest inbound message, so Claude can
+     * read e.g. an invoice while investigating.
+     *
+     * @return string|array<int, array<string, mixed>>
+     */
+    private function userContent(EmailThread $thread, $account): string|array
+    {
+        $text = $this->prompt($thread, $account);
+        $blocks = $this->attachmentBlocks($thread);
+
+        if ($blocks === []) {
+            return $text;
+        }
+
+        return [['type' => 'text', 'text' => $text], ...$blocks];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function attachmentBlocks(EmailThread $thread): array
+    {
+        $latest = $thread->messages->where('direction', EmailMessage::DIRECTION_INBOUND)->last();
+
+        if ($latest === null) {
+            return [];
+        }
+
+        $blocks = [];
+        $budget = 12 * 1024 * 1024; // ~12 MB total cap
+
+        foreach ($latest->loadMissing('attachments')->attachments as $attachment) {
+            if (count($blocks) >= 4 || $attachment->size > 6 * 1024 * 1024 || $attachment->size > $budget) {
+                continue;
+            }
+
+            $mime = (string) $attachment->mime_type;
+
+            try {
+                $raw = Storage::disk($attachment->disk)->get($attachment->path);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            if ($raw === null) {
+                continue;
+            }
+
+            if ($mime === 'application/pdf') {
+                $blocks[] = ['type' => 'document', 'source' => ['type' => 'base64', 'media_type' => 'application/pdf', 'data' => base64_encode($raw)]];
+            } elseif (in_array($mime, ['image/png', 'image/jpeg', 'image/gif', 'image/webp'], true)) {
+                $blocks[] = ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => base64_encode($raw)]];
+            } elseif (str_starts_with($mime, 'text/')) {
+                $blocks[] = ['type' => 'text', 'text' => "Bijlage \"{$attachment->filename}\":\n".Str::limit($raw, 4000)];
+            } else {
+                continue; // unsupported binary (e.g. xlsx) — leave it out, the model is told it exists
+            }
+
+            $budget -= $attachment->size;
+        }
+
+        return $blocks;
     }
 
     private function prompt(EmailThread $thread, $account): string
