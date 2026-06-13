@@ -46,6 +46,27 @@
         <div class="flex min-h-0 flex-1">
             {{-- Left: thread list grouped by category --}}
             <div class="w-80 shrink-0 overflow-y-auto border-r border-zinc-200 dark:border-zinc-700">
+                {{-- Bulk-action toolbar --}}
+                @if (auth()->user()->isTeam() && count($selectedThreads) > 0)
+                    <div class="sticky top-0 z-10 flex items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+                        <flux:text class="text-xs font-medium">{{ count($selectedThreads) }} {{ __('geselecteerd') }}</flux:text>
+                        <flux:spacer />
+                        <flux:button wire:click="markSelectedRead" variant="subtle" size="xs" icon="check" :tooltip="__('Gelezen')" />
+                        <flux:dropdown position="bottom" align="end">
+                            <flux:button variant="subtle" size="xs" icon="user-circle" :tooltip="__('Toewijzen')" />
+                            <flux:menu>
+                                <flux:menu.item wire:click="assignSelected(null)">{{ __('Niet toegewezen') }}</flux:menu.item>
+                                <flux:menu.separator />
+                                @foreach ($this->assignableUsers as $user)
+                                    <flux:menu.item wire:click="assignSelected({{ $user->id }})">{{ $user->name }}</flux:menu.item>
+                                @endforeach
+                            </flux:menu>
+                        </flux:dropdown>
+                        <flux:button wire:click="archiveSelected" variant="subtle" size="xs" icon="archive-box" :tooltip="__('Archiveren')" />
+                        <flux:button wire:click="$set('selectedThreads', [])" variant="subtle" size="xs" icon="x-mark" :tooltip="__('Wissen')" />
+                    </div>
+                @endif
+
                 @forelse ($this->groupedThreads as $category => $threads)
                     <div class="px-3 pt-4">
                         <flux:badge size="sm" :color="$this->categoryColor($category)">
@@ -54,11 +75,18 @@
                     </div>
 
                     @foreach ($threads as $thread)
-                        <button type="button" wire:key="thread-{{ $thread->id }}" wire:click="selectThread({{ $thread->id }})"
-                            @class([
-                                'flex w-full flex-col gap-1 border-b border-zinc-100 px-4 py-3 text-left transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800',
-                                'bg-zinc-100 dark:bg-zinc-800' => $selectedThreadId === $thread->id,
-                            ])>
+                        <div wire:key="thread-{{ $thread->id }}" @class([
+                            'group flex items-stretch border-b border-zinc-100 transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800',
+                            'bg-zinc-100 dark:bg-zinc-800' => $selectedThreadId === $thread->id,
+                        ])>
+                            @if (auth()->user()->isTeam())
+                                <label class="flex cursor-pointer items-center pl-3"
+                                    @class(['opacity-0 transition group-hover:opacity-100' => ! in_array($thread->id, $selectedThreads)])>
+                                    <flux:checkbox wire:model.live="selectedThreads" value="{{ $thread->id }}" />
+                                </label>
+                            @endif
+                            <button type="button" data-thread-row="{{ $thread->id }}" wire:click="selectThread({{ $thread->id }})"
+                                class="flex w-full flex-col gap-1 px-3 py-3 text-left">
                             <div class="flex items-center justify-between gap-2">
                                 <span @class(['truncate text-sm text-zinc-900 dark:text-zinc-100', 'font-semibold' => ! $thread->is_read])>
                                     {{ $thread->subject ?: __('(geen onderwerp)') }}
@@ -74,7 +102,8 @@
                                 <span>{{ $thread->messages_count }} {{ __('berichten') }}</span>
                                 <span>{{ $thread->last_message_at?->diffForHumans() }}</span>
                             </div>
-                        </button>
+                            </button>
+                        </div>
                     @endforeach
                 @empty
                     <div class="p-6 text-center text-sm text-zinc-500">{{ __('Nog geen e-mails.') }}</div>

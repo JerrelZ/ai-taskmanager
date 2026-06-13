@@ -66,6 +66,24 @@ it('snoozes a thread until a future moment and resurfaces it later', function ()
     expect($component->instance()->groupedThreads()->flatten()->pluck('id'))->toContain($thread->id);
 });
 
+it('archives and assigns multiple threads in bulk', function () {
+    $a = triageThread($this->project, 'A');
+    $b = triageThread($this->project, 'B');
+    $colleague = User::factory()->create();
+
+    Livewire::test(Inbox::class, ['project' => $this->project])
+        ->set('selectedThreads', [$a->id, $b->id])
+        ->call('assignSelected', $colleague->id)
+        ->assertSet('selectedThreads', [])
+        ->set('selectedThreads', [$a->id, $b->id])
+        ->call('archiveSelected');
+
+    expect($a->fresh()->assignee_id)->toBe($colleague->id);
+    expect($b->fresh()->assignee_id)->toBe($colleague->id);
+    expect($a->fresh()->archived_at)->not->toBeNull();
+    expect($b->fresh()->archived_at)->not->toBeNull();
+});
+
 it('shows earlier conversations from the same sender', function () {
     $current = triageThread($this->project, 'Nieuwe vraag', 'thomas@store.nl');
     $past = triageThread($this->project, 'Oude vraag', 'thomas@store.nl');

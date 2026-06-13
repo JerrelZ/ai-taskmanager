@@ -26,6 +26,7 @@ use App\Services\Email\ImapClientFactory;
 use App\Support\EmailBody;
 use App\Support\TaskActivity;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -48,6 +49,9 @@ class Inbox extends Component
 
     #[Url]
     public bool $showArchived = false;
+
+    /** @var array<int, int> Thread ids selected for bulk actions. */
+    public array $selectedThreads = [];
 
     /** Markdown context for the selected thread, lazily built. */
     public ?string $context = null;
@@ -350,6 +354,54 @@ class Inbox extends Component
         unset($this->linkedContact, $this->linkedContactRow, $this->contactSuggestions);
         $this->context = null;
         $this->showLinkPanel = false;
+    }
+
+    /**
+     * @return Builder<EmailThread>
+     */
+    private function selectedThreadsQuery(): Builder
+    {
+        return EmailThread::where('project_id', $this->project->id)
+            ->visibleTo(Auth::user())
+            ->whereIn('id', $this->selectedThreads);
+    }
+
+    public function archiveSelected(): void
+    {
+        abort_unless(Auth::user()->isTeam(), 403);
+
+        $count = $this->selectedThreadsQuery()->update(['archived_at' => now(), 'snoozed_until' => null]);
+
+        $this->afterBulk(__(':count gesprek(ken) gearchiveerd.', ['count' => $count]));
+    }
+
+    public function assignSelected(?int $userId): void
+    {
+        abort_unless(Auth::user()->isTeam(), 403);
+
+        if ($userId !== null && ! $this->assignableUsers->contains('id', $userId)) {
+            return;
+        }
+
+        $count = $this->selectedThreadsQuery()->update(['assignee_id' => $userId]);
+
+        $this->afterBulk(__(':count gesprek(ken) toegewezen.', ['count' => $count]));
+    }
+
+    public function markSelectedRead(): void
+    {
+        abort_unless(Auth::user()->isTeam(), 403);
+
+        $count = $this->selectedThreadsQuery()->update(['is_read' => true]);
+
+        $this->afterBulk(__(':count gesprek(ken) als gelezen gemarkeerd.', ['count' => $count]));
+    }
+
+    private function afterBulk(string $message): void
+    {
+        $this->selectedThreads = [];
+        unset($this->groupedThreads, $this->selectedThread);
+        Flux::toast(variant: 'success', text: $message);
     }
 
     public function archiveThread(int $threadId): void
