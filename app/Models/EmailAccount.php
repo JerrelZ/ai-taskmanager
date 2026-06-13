@@ -22,6 +22,8 @@ use Illuminate\Support\Carbon;
  * @property string $username
  * @property string $password
  * @property array<string, mixed>|null $external_db_dsn
+ * @property string|null $external_api_base_url
+ * @property string|null $external_api_token
  * @property bool $is_active
  * @property int|null $sync_days
  * @property Carbon|null $last_sync_at
@@ -44,6 +46,8 @@ class EmailAccount extends Model
         'username',
         'password',
         'external_db_dsn',
+        'external_api_base_url',
+        'external_api_token',
         'is_active',
         'sync_days',
         'last_sync_at',
@@ -53,6 +57,7 @@ class EmailAccount extends Model
     protected $hidden = [
         'password',
         'external_db_dsn',
+        'external_api_token',
     ];
 
     /**
@@ -63,6 +68,7 @@ class EmailAccount extends Model
         return [
             'password' => 'encrypted',
             'external_db_dsn' => 'encrypted:array',
+            'external_api_token' => 'encrypted',
             'is_active' => 'boolean',
             'sync_days' => 'integer',
             'last_sync_at' => 'datetime',

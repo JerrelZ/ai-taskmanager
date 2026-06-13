@@ -32,6 +32,8 @@ class EmailAccountFactory extends Factory
             'username' => $email,
             'password' => 'app-password',
             'external_db_dsn' => null,
+            'external_api_base_url' => null,
+            'external_api_token' => null,
             'is_active' => true,
             'sync_days' => null,
             'last_sync_at' => null,

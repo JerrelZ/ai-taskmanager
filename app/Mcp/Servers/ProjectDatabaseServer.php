@@ -2,7 +2,11 @@
 
 namespace App\Mcp\Servers;
 
+use App\Mcp\Tools\ApiUserLookupTool;
 use App\Mcp\Tools\CreateProjectTaskTool;
+use App\Mcp\Tools\CustomerInvoicesTool;
+use App\Mcp\Tools\CustomerRevenueTool;
+use App\Mcp\Tools\CustomerSummaryTool;
 use App\Mcp\Tools\ListProjectsTool;
 use App\Mcp\Tools\LookupContactByEmailTool;
 use App\Mcp\Tools\QueryProjectDatabaseTool;
@@ -43,6 +47,11 @@ class ProjectDatabaseServer extends Server
         QueryProjectDatabaseTool::class,
         LookupContactByEmailTool::class,
         CreateProjectTaskTool::class,
+        // External support-API tools (used when a project has an API configured).
+        ApiUserLookupTool::class,
+        CustomerSummaryTool::class,
+        CustomerRevenueTool::class,
+        CustomerInvoicesTool::class,
     ];
 
     /**
