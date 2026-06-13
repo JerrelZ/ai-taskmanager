@@ -60,7 +60,10 @@
     @else
         <div class="flex min-h-0 flex-1">
             {{-- Left: thread list grouped by category --}}
-            <div class="w-80 shrink-0 overflow-y-auto border-r border-zinc-200 dark:border-zinc-700">
+            <div @class([
+                'w-full shrink-0 overflow-y-auto border-r border-zinc-200 lg:w-80 dark:border-zinc-700',
+                'hidden lg:block' => $selectedThreadId !== null,
+            ])>
                 {{-- Bulk-action toolbar --}}
                 @if (auth()->user()->isTeam() && count($selectedThreads) > 0)
                     <div class="sticky top-0 z-10 flex items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
@@ -126,13 +129,21 @@
             </div>
 
             {{-- Center: messages of the selected thread --}}
-            <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div @class([
+                'min-h-0 min-w-0 flex-1 flex-col',
+                'hidden lg:flex' => $selectedThreadId === null || $mobileContext,
+                'flex' => $selectedThreadId !== null && ! $mobileContext,
+            ])>
                 @if ($this->selectedThread)
-                    <div class="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
-                        <flux:heading size="lg" class="min-w-0 truncate">{{ $this->selectedThread->subject ?: __('(geen onderwerp)') }}</flux:heading>
+                    <div class="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-4 py-4 lg:px-6 dark:border-zinc-700">
+                        <div class="flex min-w-0 items-center gap-2">
+                            <flux:button wire:click="$set('selectedThreadId', null)" variant="subtle" size="sm" icon="arrow-left" class="lg:hidden" />
+                            <flux:heading size="lg" class="min-w-0 truncate">{{ $this->selectedThread->subject ?: __('(geen onderwerp)') }}</flux:heading>
+                        </div>
 
-                        @if (auth()->user()->isTeam())
-                            <div class="flex shrink-0 items-center gap-2">
+                        <div class="flex shrink-0 items-center gap-2">
+                            <flux:button wire:click="$set('mobileContext', true)" variant="subtle" size="sm" icon="information-circle" class="lg:hidden" :tooltip="__('Context')" />
+                            @if (auth()->user()->isTeam())
                                 {{-- Assign thread to a teammate --}}
                                 <flux:dropdown position="bottom" align="end">
                                     <flux:button variant="subtle" size="sm" icon="user-circle" icon:trailing="chevron-down">
@@ -185,8 +196,8 @@
                                 @else
                                     <flux:button wire:click="archiveThread({{ $this->selectedThread->id }})" variant="subtle" size="sm" icon="archive-box" :tooltip="__('Archiveren')" />
                                 @endif
-                            </div>
-                        @endif
+                            @endif
+                        </div>
                     </div>
 
                     {{-- Newest first: only the display order is reversed; the underlying
@@ -295,8 +306,14 @@
 
             {{-- Right: AI/project context panel --}}
             @if ($this->selectedThread)
-                <div class="w-80 shrink-0 overflow-y-auto border-l border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-900/30"
+                <div @class([
+                        'w-full shrink-0 overflow-y-auto border-l border-zinc-200 bg-zinc-50/50 p-4 lg:w-80 dark:border-zinc-700 dark:bg-zinc-900/30',
+                        'hidden lg:block' => ! $mobileContext,
+                    ])
                     wire:key="context-{{ $this->selectedThread->id }}" wire:init="loadContext">
+                    <flux:button wire:click="$set('mobileContext', false)" variant="subtle" size="sm" icon="arrow-left" class="mb-3 lg:hidden">
+                        {{ __('Terug') }}
+                    </flux:button>
 
                     {{-- Sender ↔ external database link --}}
                     @if (auth()->user()->isTeam() && $this->account()?->external_db_dsn && $this->senderForLink())

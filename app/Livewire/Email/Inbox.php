@@ -55,6 +55,9 @@ class Inbox extends Component
     /** @var array<int, int> Thread ids selected for bulk actions. */
     public array $selectedThreads = [];
 
+    /** On mobile, show the context pane instead of the thread pane. */
+    public bool $mobileContext = false;
+
     /** Markdown context for the selected thread, lazily built. */
     public ?string $context = null;
 
@@ -187,6 +190,7 @@ class Inbox extends Component
         $this->selectedThreadId = $threadId;
         $this->context = null;
         $this->showLinkPanel = false;
+        $this->mobileContext = false;
         unset($this->linkedContact, $this->linkedContactRow, $this->contactSuggestions, $this->threadTicket, $this->senderHistory);
 
         $thread = $this->selectedThread();
