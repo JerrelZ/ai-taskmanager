@@ -110,12 +110,48 @@
                             </div>
                         @endif
 
-                        <form wire:submit="uploadAttachments" class="flex items-center gap-2">
-                            <flux:input type="file" wire:model="newAttachments" multiple size="sm" class="flex-1" />
-                            <flux:button type="submit" size="sm" variant="primary" icon="arrow-up-tray"
-                                wire:loading.attr="disabled" wire:target="newAttachments,uploadAttachments">
-                                {{ __('Uploaden') }}
-                            </flux:button>
+                        <form wire:submit="uploadAttachments" class="space-y-2"
+                            x-data="{ dragging: false }"
+                            x-on:dragover.prevent="dragging = true"
+                            x-on:dragleave.prevent="dragging = false"
+                            x-on:drop.prevent="dragging = false; $refs.fileInput.files = $event.dataTransfer.files; $refs.fileInput.dispatchEvent(new Event('change', { bubbles: true }))"
+                        >
+                            <label
+                                x-bind:class="dragging
+                                    ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-500/10'
+                                    : 'border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600'"
+                                class="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-4 py-6 text-center transition"
+                            >
+                                <flux:icon name="arrow-up-tray" class="size-5 text-zinc-400" />
+                                <span class="text-sm text-zinc-600 dark:text-zinc-300">
+                                    {{ __('Sleep bestanden hierheen of') }}
+                                    <span class="font-medium text-blue-600 dark:text-blue-400">{{ __('blader') }}</span>
+                                </span>
+                                <span class="text-xs text-zinc-400">{{ __('Max 25 MB per bestand') }}</span>
+                                <input x-ref="fileInput" type="file" wire:model="newAttachments" multiple class="hidden" />
+                            </label>
+
+                            <div wire:loading.flex wire:target="newAttachments" class="items-center gap-2 text-xs text-zinc-400">
+                                <flux:icon name="loading" variant="micro" />
+                                {{ __('Bezig met uploaden...') }}
+                            </div>
+
+                            @if (count($newAttachments) > 0)
+                                <div class="space-y-1" wire:loading.remove wire:target="newAttachments">
+                                    @foreach ($newAttachments as $index => $pending)
+                                        <div wire:key="pending-{{ $index }}" class="flex items-center gap-2 rounded-md bg-zinc-50 px-2 py-1.5 dark:bg-zinc-800/50">
+                                            <flux:icon name="paper-clip" class="size-4 shrink-0 text-zinc-400" />
+                                            <span class="flex-1 truncate text-sm text-zinc-700 dark:text-zinc-200">{{ $pending->getClientOriginalName() }}</span>
+                                            <flux:button wire:click="removeNewAttachment({{ $index }})" variant="subtle" size="xs" icon="x-mark" :tooltip="__('Verwijderen')" />
+                                        </div>
+                                    @endforeach
+                                </div>
+
+                                <flux:button type="submit" size="sm" variant="primary" icon="arrow-up-tray" class="w-full"
+                                    wire:loading.attr="disabled" wire:target="newAttachments,uploadAttachments">
+                                    {{ __('Uploaden') }}
+                                </flux:button>
+                            @endif
                         </form>
                         <flux:error name="newAttachments" />
                         <flux:error name="newAttachments.*" />

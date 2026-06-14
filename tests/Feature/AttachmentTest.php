@@ -38,6 +38,40 @@ it('stores an upload and links it to the attachable', function () {
     Storage::disk('local')->assertExists($attachment->path);
 });
 
+it('reads upload metadata before storing moves the temp file away', function () {
+    $task = Task::factory()->create();
+
+    // On a matching disk Livewire *moves* the temporary upload during store(),
+    // after which its size can no longer be read. This double fails getSize()
+    // once stored to prove metadata is captured beforehand.
+    $file = new class(tempnam(sys_get_temp_dir(), 'att'), 'export.csv', 'text/csv', null, true) extends UploadedFile
+    {
+        private bool $moved = false;
+
+        public function store($path = '', $options = []): string|false
+        {
+            $this->moved = true;
+
+            return $path.'/export.csv';
+        }
+
+        public function getSize(): int
+        {
+            if ($this->moved) {
+                throw new RuntimeException('Temporary file was moved away during store().');
+            }
+
+            return 1024;
+        }
+    };
+
+    $attachment = app(AttachmentService::class)->storeUpload($file, $task, $this->user);
+
+    expect($attachment->size)->toBe(1024);
+    expect($attachment->filename)->toBe('export.csv');
+    expect($attachment->mime_type)->toBe('text/csv');
+});
+
 it('deletes the underlying file when the attachment row is deleted', function () {
     $task = Task::factory()->create();
     $attachment = app(AttachmentService::class)->storeUpload(UploadedFile::fake()->create('x.pdf', 4), $task);

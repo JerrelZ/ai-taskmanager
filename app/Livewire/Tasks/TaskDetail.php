@@ -113,6 +113,12 @@ class TaskDetail extends Component
         Flux::toast(variant: 'success', text: __('Bijlage(n) toegevoegd.'));
     }
 
+    public function removeNewAttachment(int $index): void
+    {
+        unset($this->newAttachments[$index]);
+        $this->newAttachments = array_values($this->newAttachments);
+    }
+
     public function deleteAttachment(int $attachmentId): void
     {
         $task = $this->task();

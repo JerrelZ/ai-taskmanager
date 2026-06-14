@@ -19,13 +19,20 @@ class AttachmentService
 
     public function storeUpload(UploadedFile $file, Model $attachable, ?User $uploader = null): Attachment
     {
+        // Read metadata before storing: on a matching disk Livewire *moves* the
+        // temporary upload, after which reading its size/name/mime would throw
+        // an UnableToRetrieveMetadata error against the now-missing temp file.
+        $originalName = $file->getClientOriginalName();
+        $mimeType = $file->getClientMimeType();
+        $size = $file->getSize() ?: 0;
+
         $path = $file->store($this->directory($attachable), self::DISK);
 
         return $this->record($attachable, [
             'path' => $path,
-            'filename' => $file->getClientOriginalName() ?: basename($path),
-            'mime_type' => $file->getClientMimeType(),
-            'size' => $file->getSize() ?: 0,
+            'filename' => $originalName ?: basename($path),
+            'mime_type' => $mimeType,
+            'size' => $size,
         ], $uploader);
     }
 
