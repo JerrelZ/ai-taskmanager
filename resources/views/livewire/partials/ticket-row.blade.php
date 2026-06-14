@@ -12,7 +12,7 @@
     ])
 >
     {{-- Drag handle --}}
-    <div wire:sort:handle class="cursor-grab text-zinc-300 opacity-0 transition group-hover:opacity-100 dark:text-zinc-600" title="{{ __('Sleep om prioriteit te bepalen') }}">
+    <div wire:sort:handle class="hidden cursor-grab text-zinc-300 opacity-0 transition group-hover:opacity-100 sm:block dark:text-zinc-600" title="{{ __('Sleep om prioriteit te bepalen') }}">
         <flux:icon name="bars-2" variant="micro" />
     </div>
 
@@ -75,7 +75,7 @@
     </div>
 
     {{-- Actions --}}
-    <div wire:sort:ignore class="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+    <div wire:sort:ignore class="hidden shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100 sm:flex">
         @if ($stale)
             <flux:tooltip :content="__('Markeer als bijgewerkt')">
                 <flux:button wire:click="markReviewed({{ $task->id }})" variant="subtle" size="xs" icon="check" inset="top bottom" />

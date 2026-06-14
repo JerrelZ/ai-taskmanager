@@ -4,7 +4,7 @@
         @include('partials.head')
     </head>
     <body class="min-h-screen bg-zinc-50 font-sans text-zinc-800 antialiased dark:bg-zinc-950 dark:text-zinc-200">
-        <flux:sidebar sticky collapsible="mobile" class="border-e border-zinc-200 bg-zinc-100/50 dark:border-zinc-800 dark:bg-zinc-900/40">
+        <flux:sidebar sticky collapsible="mobile" class="border-e border-zinc-200 bg-zinc-100/50 max-lg:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40 max-lg:dark:bg-zinc-900">
             <flux:sidebar.header>
                 <a href="{{ route('tickets.index') }}" wire:navigate class="flex items-center gap-2 px-1 py-1">
                     <span class="flex size-7 items-center justify-center rounded-full bg-brand-600 font-display text-lg leading-none text-white">t</span>
