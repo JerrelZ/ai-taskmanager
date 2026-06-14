@@ -48,7 +48,7 @@ return new class extends Migration
             // Hard idempotency guarantee: a folder's UID is unique within a UIDVALIDITY
             // epoch. Including uid_validity lets old + new epochs coexist after a reset
             // without UID-reuse collisions, so re-sync never duplicates and never skips.
-            $table->unique(['email_account_id', 'email_folder_id', 'uid_validity', 'uid']);
+            $table->unique(['email_account_id', 'email_folder_id', 'uid_validity', 'uid'], 'email_messages_folder_uid_unique');
             $table->index('message_id');
             $table->index('status');
         });
