@@ -133,6 +133,8 @@
             </flux:dropdown>
         </flux:header>
 
+        <x-mobile-bottom-nav />
+
         {{ $slot }}
 
         @persist('toast')
@@ -142,6 +144,10 @@
         @endpersist
 
         <script>
+            document.addEventListener('alpine:init', () => {
+                Alpine.store('mobileNav', { hiddenForChat: false });
+            });
+
             document.addEventListener('livewire:init', () => {
                 Livewire.on('copy-to-clipboard', (event) => {
                     const text = Array.isArray(event) ? event[0]?.text : event?.text;

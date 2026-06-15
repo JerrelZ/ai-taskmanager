@@ -1,4 +1,14 @@
-<div class="-m-6 flex h-[calc(100dvh-3.5rem)] w-[calc(100%+3rem)] overflow-hidden lg:-m-8 lg:h-dvh lg:w-[calc(100%+4rem)]" wire:poll.3s>
+<div
+    x-data
+    x-effect="$store.mobileNav.hiddenForChat = $wire.conversationId !== null"
+    x-on:livewire:navigating.window="$store.mobileNav.hiddenForChat = false"
+    @class([
+        '-m-6 flex w-[calc(100%+3rem)] overflow-hidden lg:-m-8 lg:h-dvh lg:w-[calc(100%+4rem)]',
+        'h-[calc(100dvh-3.5rem)]' => $this->activeConversation !== null,
+        'h-[calc(100dvh-3.5rem-4rem)]' => $this->activeConversation === null,
+    ])
+    wire:poll.3s
+>
     @php $me = auth()->user(); @endphp
 
     {{-- Conversation list --}}
