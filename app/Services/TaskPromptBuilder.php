@@ -49,7 +49,7 @@ class TaskPromptBuilder
         }
 
         $lines[] = '---';
-        $lines[] = 'Please implement this task. Ask for clarification if anything is ambiguous before making large changes.';
+        $lines[] = 'Pak dit ticket op. Gebruik de hierboven genoemde context (repository, conventies, eventuele database-ids) waar relevant. Vraag om verduidelijking als iets onduidelijk is voordat je grote wijzigingen maakt.';
 
         return implode("\n", $lines);
     }

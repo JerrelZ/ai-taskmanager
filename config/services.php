@@ -25,6 +25,8 @@ return [
     'anthropic' => [
         'key' => env('ANTHROPIC_API_KEY', env('CLAUDE_API_KEY')),
         'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-4-6'),
+        // Cheaper model for the high-volume ticket prompt-readiness check.
+        'readiness_model' => env('ANTHROPIC_READINESS_MODEL', 'claude-haiku-4-5'),
     ],
 
     'email' => [

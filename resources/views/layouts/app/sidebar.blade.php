@@ -26,6 +26,9 @@
                 <flux:sidebar.item icon="clock" :href="route('tickets.index', ['onlyStale' => 1])" :current="request()->routeIs('tickets.index') && request()->boolean('onlyStale')" wire:navigate>
                     {{ __('Verouderd') }}
                 </flux:sidebar.item>
+                <flux:sidebar.item icon="sparkles" :href="route('tickets.ready')" :current="request()->routeIs('tickets.ready')" wire:navigate>
+                    {{ __('Klaar voor Claude Code') }}
+                </flux:sidebar.item>
                 <flux:sidebar.item icon="rectangle-stack" :href="route('projects.index')" :current="request()->routeIs('projects.index')" wire:navigate>
                     {{ __('Projecten') }}
                 </flux:sidebar.item>

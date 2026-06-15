@@ -3,7 +3,10 @@
 namespace App\Models;
 
 use App\Enums\TaskPriority;
+use App\Enums\TaskReadiness;
 use App\Enums\TaskStatus;
+use App\Jobs\AssessTaskPromptReadiness;
+use App\Services\TaskPromptBuilder;
 use Carbon\CarbonInterface;
 use Database\Factories\TaskFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -29,6 +32,10 @@ use Illuminate\Support\Carbon;
  * @property int $position
  * @property int $rank
  * @property Carbon|null $reviewed_at
+ * @property TaskReadiness|null $ai_readiness
+ * @property list<string>|null $ai_missing
+ * @property string|null $ai_prompt
+ * @property Carbon|null $ai_assessed_at
  * @property int|null $created_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -52,6 +59,10 @@ class Task extends Model
         'position',
         'rank',
         'reviewed_at',
+        'ai_readiness',
+        'ai_missing',
+        'ai_prompt',
+        'ai_assessed_at',
         'created_by',
     ];
 
@@ -67,6 +78,19 @@ class Task extends Model
                 $task->number = (int) static::where('project_id', $task->project_id)->max('number') + 1;
             }
         });
+
+        // Re-assess prompt-readiness whenever the context that feeds the prompt
+        // changes. The assessment job only writes ai_* columns, so the `updated`
+        // guard below stays false for its own write-back (no recursion).
+        static::created(function (Task $task): void {
+            AssessTaskPromptReadiness::dispatch($task->id);
+        });
+
+        static::updated(function (Task $task): void {
+            if ($task->wasChanged(['title', 'description', 'project_id'])) {
+                AssessTaskPromptReadiness::dispatch($task->id);
+            }
+        });
     }
 
     /**
@@ -80,43 +104,32 @@ class Task extends Model
     }
 
     /**
-     * A ready-to-paste prompt for Claude Code, bundling the project setup, the
-     * ticket and any embedded database context (user ids, etc.).
+     * The canonical, deterministic Claude Code prompt for this ticket. Single
+     * source of truth (also used by headless runs), so what you copy matches
+     * what a run executes.
      */
     public function claudeCodePrompt(): string
     {
-        $project = $this->project;
-        $lines = [];
+        return app(TaskPromptBuilder::class)->build($this);
+    }
 
-        if ($project !== null) {
-            $lines[] = "Je werkt aan het project \"{$project->name}\".";
+    /**
+     * The best prompt to hand a developer: the AI-sharpened version when it has
+     * been assessed, otherwise the freshly built one.
+     */
+    public function resolvedPrompt(): string
+    {
+        return filled($this->ai_prompt) ? $this->ai_prompt : $this->claudeCodePrompt();
+    }
 
-            if (filled($project->repo_path)) {
-                $lines[] = "Repository: {$project->repo_path}";
-            }
-
-            if (filled($project->stack)) {
-                $lines[] = "Stack: {$project->stack}";
-            }
-
-            if (filled($project->context)) {
-                $lines[] = "Conventies: {$project->context}";
-            }
-
-            $lines[] = '';
-        }
-
-        $lines[] = "Ticket {$this->identifier()}: {$this->title}";
-
-        if (filled($this->description)) {
-            $lines[] = '';
-            $lines[] = $this->description;
-        }
-
-        $lines[] = '';
-        $lines[] = 'Pak dit ticket op. Gebruik de hierboven genoemde database-context (ids) waar relevant.';
-
-        return implode("\n", $lines);
+    /**
+     * Scope to tickets the assessor judged fully paste-ready.
+     *
+     * @param  Builder<Task>  $query
+     */
+    public function scopePromptReady(Builder $query): void
+    {
+        $query->where('ai_readiness', TaskReadiness::Ready->value);
     }
 
     /**
@@ -129,6 +142,9 @@ class Task extends Model
             'priority' => TaskPriority::class,
             'due_date' => 'date',
             'reviewed_at' => 'datetime',
+            'ai_readiness' => TaskReadiness::class,
+            'ai_missing' => 'array',
+            'ai_assessed_at' => 'datetime',
         ];
     }
 

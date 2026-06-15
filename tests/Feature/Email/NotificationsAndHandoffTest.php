@@ -91,7 +91,7 @@ it('builds a Claude Code prompt from the thread ticket', function () {
     $component->assertSet('claudeCodePrompt', function (string $prompt) {
         return str_contains($prompt, '~/Herd/revboost')
             && str_contains($prompt, 'Laravel 13, Livewire 4')
-            && str_contains($prompt, 'Ticket')
+            && str_contains($prompt, '## Project context')
             && str_contains($prompt, 'Vraag over factuur');
     });
 });

@@ -7,10 +7,12 @@ use App\Livewire\Projects\Board;
 use App\Livewire\Projects\Index;
 use App\Livewire\Team\Index as TeamIndex;
 use App\Livewire\Tickets\Index as TicketsIndex;
+use App\Livewire\Tickets\Ready as TicketsReady;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function () {
     Route::livewire('tickets', TicketsIndex::class)->name('tickets.index');
+    Route::livewire('tickets/ready', TicketsReady::class)->name('tickets.ready');
     Route::livewire('messages', MessagesIndex::class)->name('messages.index');
     Route::livewire('projects', Index::class)->name('projects.index');
     Route::livewire('projects/{project}', Board::class)->name('projects.board');
