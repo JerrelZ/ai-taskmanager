@@ -3,5 +3,5 @@
         {{ __('Start het gesprek over dit project.') }}
     </x-chat.thread>
 
-    <x-chat.composer :mentions="$this->people->pluck('name')" :pending="$newChatAttachments" :placeholder="__('Schrijf een bericht... (@naam om te taggen)')" />
+    <x-chat.composer :mentions="$this->people->pluck('name')" :pending="$newChatAttachments" />
 </div>

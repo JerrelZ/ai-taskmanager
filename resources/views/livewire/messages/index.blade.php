@@ -1,4 +1,4 @@
-<div class="-m-6 flex h-dvh w-[calc(100%+3rem)] overflow-hidden lg:-m-8 lg:w-[calc(100%+4rem)]" wire:poll.3s>
+<div class="-m-6 flex h-[calc(100dvh-3.5rem)] w-[calc(100%+3rem)] overflow-hidden lg:-m-8 lg:h-dvh lg:w-[calc(100%+4rem)]" wire:poll.3s>
     @php $me = auth()->user(); @endphp
 
     {{-- Conversation list --}}
@@ -87,7 +87,7 @@
                 :can-draft-ticket="true"
             />
 
-            <x-chat.composer :mentions="$this->people->pluck('name')" :pending="$newChatAttachments" :placeholder="__('Schrijf een bericht... (@naam om te taggen)')" />
+            <x-chat.composer :mentions="$this->people->pluck('name')" :pending="$newChatAttachments" />
         @else
             <div class="flex h-full flex-col items-center justify-center gap-2 text-center text-zinc-400">
                 <flux:icon name="chat-bubble-left-right" class="size-12 text-zinc-300 dark:text-zinc-600" />

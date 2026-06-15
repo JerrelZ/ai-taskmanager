@@ -104,7 +104,7 @@
                 x-on:keydown="onKeydown($event)"
                 rows="1"
                 placeholder="{{ $placeholder ?? __('Schrijf een bericht...') }}"
-                class="max-h-40 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-0 dark:text-zinc-100"
+                class="max-h-40 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-base text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-0 dark:text-zinc-100"
             ></textarea>
 
             {{-- Mention autocomplete --}}

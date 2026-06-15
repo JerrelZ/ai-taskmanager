@@ -5,14 +5,27 @@
     'canDraftTicket' => false,
 ])
 
-<div class="flex min-h-0 flex-1 flex-col" x-data="{ lightbox: null }" x-on:keydown.escape.window="lightbox = null">
+<div
+    class="flex min-h-0 flex-1 flex-col"
+    x-data="{ lightbox: null }"
+    x-on:lightbox-open="lightbox = $event.detail"
+    x-on:keydown.escape.window="lightbox = null"
+>
     <div
         x-data="chatThread"
         x-on:message-sent.window="scrollToBottom()"
-        class="flex flex-1 flex-col gap-0.5 overflow-y-auto bg-zinc-100 px-3 py-4 lg:px-6 dark:bg-zinc-900"
+        class="flex flex-1 flex-col overflow-y-auto bg-zinc-100 px-3 py-4 lg:px-6 dark:bg-zinc-900"
     >
+        @if ($messages->isEmpty())
+            <div class="flex flex-1 flex-col items-center justify-center gap-2 text-center text-zinc-400">
+                <flux:icon name="chat-bubble-left-right" class="size-10 text-zinc-300 dark:text-zinc-600" />
+                {{ $slot->isNotEmpty() ? $slot : __('Start het gesprek.') }}
+            </div>
+        @else
+        {{-- mt-auto keeps the conversation pinned to the bottom (WhatsApp-style) while staying scrollable. --}}
+        <div class="mt-auto flex flex-col gap-0.5">
         @php $prev = null; @endphp
-        @forelse ($messages as $message)
+        @foreach ($messages as $message)
             @php
                 $mine = $message->user_id === $me->id;
                 $startsGroup = $prev === null
@@ -58,7 +71,7 @@
                                     src="{{ route('attachments.show', $image) }}"
                                     alt="{{ $image->filename }}"
                                     loading="lazy"
-                                    x-on:click="lightbox = '{{ route('attachments.show', $image) }}'"
+                                    x-on:click="$dispatch('lightbox-open', '{{ route('attachments.show', $image) }}')"
                                     @class([
                                         'w-full cursor-zoom-in rounded-lg object-cover',
                                         'max-h-72' => $images->count() === 1,
@@ -113,12 +126,9 @@
                     </flux:tooltip>
                 @endif
             </div>
-        @empty
-            <div class="flex h-full flex-col items-center justify-center gap-2 text-center text-zinc-400">
-                <flux:icon name="chat-bubble-left-right" class="size-10 text-zinc-300 dark:text-zinc-600" />
-                {{ $slot->isNotEmpty() ? $slot : __('Start het gesprek.') }}
-            </div>
-        @endforelse
+        @endforeach
+        </div>
+        @endif
     </div>
 
     {{-- Image lightbox --}}
