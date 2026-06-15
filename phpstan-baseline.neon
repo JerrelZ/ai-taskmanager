@@ -1,0 +1,217 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Access to an undefined property App\\Livewire\\Email\\Inbox\:\:\$assignableUsers\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Livewire/Email/Inbox.php
+
+		-
+			message: '#^Access to an undefined property App\\Livewire\\Email\\Inbox\:\:\$replyTemplates\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Livewire/Email/Inbox.php
+
+		-
+			message: '#^Method App\\Livewire\\Email\\Inbox\:\:groupedThreads\(\) should return Illuminate\\Support\\Collection\<string, Illuminate\\Support\\Collection\<int, App\\Models\\EmailThread\>\> but returns Illuminate\\Database\\Eloquent\\Collection\<\(int\|string\), Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\EmailThread\>\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Livewire/Email/Inbox.php
+
+		-
+			message: '#^Method App\\Livewire\\Email\\Inbox\:\:render\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Livewire/Email/Inbox.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>external_db_dsn" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Livewire/Email/Inbox.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>from_email" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Livewire/Email/Inbox.php
+
+		-
+			message: '#^Access to an undefined property App\\Livewire\\Messages\\Index\:\:\$activeConversation\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Livewire/Messages/Index.php
+
+		-
+			message: '#^Method App\\Livewire\\NotificationBell\:\:render\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Livewire/NotificationBell.php
+
+		-
+			message: '#^Access to an undefined property App\\Livewire\\Projects\\Board\:\:\$tasks\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Livewire/Projects/Board.php
+
+		-
+			message: '#^Access to an undefined property App\\Livewire\\Tasks\\TaskDetail\:\:\$task\.$#'
+			identifier: property.notFound
+			count: 7
+			path: app/Livewire/Tasks/TaskDetail.php
+
+		-
+			message: '#^Access to an undefined property App\\Livewire\\Tickets\\Index\:\:\$tickets\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Livewire/Tickets/Index.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Livewire/Tickets/Index.php
+
+		-
+			message: '#^Method App\\Mcp\\Tools\\ApiUserLookupTool\:\:schema\(\) should return array\<string, Illuminate\\Contracts\\JsonSchema\\JsonSchema\> but returns array\<string, Illuminate\\JsonSchema\\Types\\StringType\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Mcp/Tools/ApiUserLookupTool.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Mcp/Tools/CreateProjectTaskTool.php
+
+		-
+			message: '#^Method App\\Mcp\\Tools\\CreateProjectTaskTool\:\:schema\(\) should return array\<string, Illuminate\\Contracts\\JsonSchema\\JsonSchema\> but returns array\<string, Illuminate\\JsonSchema\\Types\\StringType\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Mcp/Tools/CreateProjectTaskTool.php
+
+		-
+			message: '#^Method App\\Mcp\\Tools\\CustomerInvoicesTool\:\:schema\(\) should return array\<string, Illuminate\\Contracts\\JsonSchema\\JsonSchema\> but returns array\<string, Illuminate\\JsonSchema\\Types\\StringType\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Mcp/Tools/CustomerInvoicesTool.php
+
+		-
+			message: '#^Method App\\Mcp\\Tools\\CustomerRevenueTool\:\:schema\(\) should return array\<string, Illuminate\\Contracts\\JsonSchema\\JsonSchema\> but returns array\<string, Illuminate\\JsonSchema\\Types\\StringType\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Mcp/Tools/CustomerRevenueTool.php
+
+		-
+			message: '#^Method App\\Mcp\\Tools\\CustomerSummaryTool\:\:schema\(\) should return array\<string, Illuminate\\Contracts\\JsonSchema\\JsonSchema\> but returns array\<string, Illuminate\\JsonSchema\\Types\\StringType\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Mcp/Tools/CustomerSummaryTool.php
+
+		-
+			message: '#^Method App\\Mcp\\Tools\\LookupContactByEmailTool\:\:schema\(\) should return array\<string, Illuminate\\Contracts\\JsonSchema\\JsonSchema\> but returns array\<string, Illuminate\\JsonSchema\\Types\\StringType\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Mcp/Tools/LookupContactByEmailTool.php
+
+		-
+			message: '#^Method App\\Mcp\\Tools\\QueryProjectDatabaseTool\:\:schema\(\) should return array\<string, Illuminate\\Contracts\\JsonSchema\\JsonSchema\> but returns array\<string, Illuminate\\JsonSchema\\Types\\ArrayType\|Illuminate\\JsonSchema\\Types\\StringType\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Mcp/Tools/QueryProjectDatabaseTool.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 2
+			path: app/Models/Activity.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\User\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Conversation.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Conversation.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Models/Conversation.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between int and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Models/Task.php
+
+		-
+			message: '#^Parameter \#1 \$path of function basename expects string, string\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/AttachmentService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>subject" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/Email/EmailCategoriser.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>text_body" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/Email/EmailCategoriser.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>from_email" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Email/EmailContextInvestigator.php
+
+		-
+			message: '#^Method App\\Services\\Email\\EmailSender\:\:buildReferences\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Services/Email/EmailSender.php
+
+		-
+			message: '#^Method App\\Services\\Email\\EmailSender\:\:recordOutbound\(\) has parameter \$references with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Services/Email/EmailSender.php
+
+		-
+			message: '#^Method App\\Services\\Email\\EmailSender\:\:sendSmtp\(\) has parameter \$references with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Services/Email/EmailSender.php
+
+		-
+			message: '#^PHPDoc tag @param references unknown parameter\: \$references$#'
+			identifier: parameter.notFound
+			count: 1
+			path: app/Services/Email/EmailSender.php
+
+		-
+			message: '#^Call to function array_is_list\(\) with array\<string, mixed\> will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Services/Email/ExternalProjectApi.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/TaskPromptBuilder.php
+
+		-
+			message: '#^Call to an undefined method Faker\\Generator\:\:catchPhrase\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: database/factories/ProjectFactory.php
