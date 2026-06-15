@@ -1,4 +1,4 @@
-<div class="-m-6 flex h-dvh w-[calc(100%+3rem)] overflow-hidden lg:-m-8 lg:w-[calc(100%+4rem)]" wire:poll.5s>
+<div class="-m-6 flex h-dvh w-[calc(100%+3rem)] overflow-hidden lg:-m-8 lg:w-[calc(100%+4rem)]" wire:poll.3s>
     @php $me = auth()->user(); @endphp
 
     {{-- Conversation list --}}
@@ -80,100 +80,14 @@
                 @endif
             </div>
 
-            <div
-                x-data
-                x-init="$nextTick(() => $el.scrollTop = $el.scrollHeight)"
-                class="flex-1 space-y-2 overflow-y-auto bg-zinc-50 px-6 py-6 dark:bg-zinc-900"
-            >
-                @forelse ($this->thread as $message)
-                    @php
-                        $mine = $message->user_id === $me->id;
-                        $showName = ! $mine && $conversation->type !== \App\Enums\ConversationType::Dm;
-                    @endphp
-                    <div wire:key="msg-{{ $message->id }}" @class([
-                        'group flex items-end gap-2',
-                        'flex-row-reverse' => $mine,
-                    ])>
-                        @unless ($mine)
-                            <flux:avatar size="xs" circle :name="$message->user?->name ?? '?'" :initials="$message->user?->initials() ?? '?'" class="shrink-0" />
-                        @endunless
+            <x-chat.thread
+                :messages="$this->thread"
+                :me="$me"
+                :show-sender-names="$conversation->type !== \App\Enums\ConversationType::Dm"
+                :can-draft-ticket="true"
+            />
 
-                        <div @class([
-                            'relative max-w-[75%] rounded-2xl px-3 py-2 shadow-sm',
-                            'rounded-br-sm bg-brand-500 text-white' => $mine,
-                            'rounded-bl-sm bg-white text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100' => ! $mine,
-                        ])>
-                            @if ($showName)
-                                <div class="mb-0.5 text-xs font-semibold text-brand-600 dark:text-brand-400">{{ $message->user?->name ?? __('Onbekend') }}</div>
-                            @endif
-                            @if (filled($message->body))
-                                <div @class([
-                                    'text-sm break-words',
-                                    'prose-mentions-light' => $mine,
-                                ])>{!! \App\Support\Mentions::render($message->body) !!}</div>
-                            @endif
-
-                            @if ($message->attachments->isNotEmpty())
-                                <div class="mt-1 flex flex-col gap-1">
-                                    @foreach ($message->attachments as $attachment)
-                                        <a href="{{ route('attachments.download', $attachment) }}" @class([
-                                            'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs',
-                                            'bg-white/15 text-white hover:bg-white/25' => $mine,
-                                            'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-200' => ! $mine,
-                                        ])>
-                                            <flux:icon :name="$attachment->isImage() ? 'photo' : 'paper-clip'" class="size-3.5" />
-                                            <span class="max-w-[12rem] truncate">{{ $attachment->filename }}</span>
-                                            <span @class(['text-white/60' => $mine, 'text-zinc-400' => ! $mine])>{{ $attachment->humanSize() }}</span>
-                                        </a>
-                                    @endforeach
-                                </div>
-                            @endif
-
-                            <div @class([
-                                'mt-1 text-right text-[10px] leading-none',
-                                'text-white/70' => $mine,
-                                'text-zinc-400' => ! $mine,
-                            ])>{{ $message->created_at->format('H:i') }}</div>
-                        </div>
-
-                        <flux:tooltip :content="__('Maak ticket van dit bericht')">
-                            <flux:button wire:click="openTicketDraft({{ $message->id }})" size="xs" variant="subtle" icon="sparkles" inset="top bottom" class="opacity-0 transition group-hover:opacity-100" />
-                        </flux:tooltip>
-                    </div>
-                @empty
-                    <div class="flex h-full flex-col items-center justify-center gap-2 text-center text-zinc-400">
-                        <flux:icon name="chat-bubble-left-right" class="size-10 text-zinc-300 dark:text-zinc-600" />
-                        {{ __('Start het gesprek.') }}
-                    </div>
-                @endforelse
-            </div>
-
-            <div class="border-t border-zinc-200 dark:border-zinc-700">
-                <form wire:submit="send" class="flex items-end gap-2 px-6 py-4">
-                    <div class="relative flex-1" x-data="mentionAutocomplete(@js($this->people->pluck('name')->values()))" x-on:input="onInput()" x-on:keydown="onKeydown($event)">
-                        <flux:textarea wire:model="body" rows="1" placeholder="{{ __('Schrijf een bericht... (@naam om te taggen)') }}" />
-                        <div x-show="open" x-cloak class="absolute bottom-full left-0 z-20 mb-1 max-h-48 w-64 overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
-                            <template x-for="(name, i) in matches" :key="name">
-                                <button type="button" x-on:mousedown.prevent="choose(name)" :class="i === active ? 'bg-brand-50 dark:bg-brand-950/40' : ''" class="block w-full px-3 py-1.5 text-start text-sm text-zinc-700 dark:text-zinc-200">@<span x-text="name"></span></button>
-                            </template>
-                        </div>
-                    </div>
-                    <label class="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                        :title="__('Bijlage toevoegen')">
-                        <flux:icon name="paper-clip" class="size-5" />
-                        <input type="file" wire:model="newChatAttachments" multiple class="hidden" />
-                    </label>
-                    <flux:button type="submit" variant="primary" icon="paper-airplane">{{ __('Verstuur') }}</flux:button>
-                </form>
-
-                @if (count($newChatAttachments) > 0)
-                    <div class="flex items-center gap-2 px-6 pb-3 text-xs text-zinc-500">
-                        <flux:icon name="paper-clip" class="size-3.5" />
-                        {{ trans_choice('{1}:count bijlage klaar om te versturen|[2,*]:count bijlagen klaar om te versturen', count($newChatAttachments), ['count' => count($newChatAttachments)]) }}
-                        <span wire:loading wire:target="newChatAttachments" class="text-zinc-400">{{ __('(uploaden...)') }}</span>
-                    </div>
-                @endif
-            </div>
+            <x-chat.composer :mentions="$this->people->pluck('name')" :pending="$newChatAttachments" :placeholder="__('Schrijf een bericht... (@naam om te taggen)')" />
         @else
             <div class="flex h-full flex-col items-center justify-center gap-2 text-center text-zinc-400">
                 <flux:icon name="chat-bubble-left-right" class="size-12 text-zinc-300 dark:text-zinc-600" />

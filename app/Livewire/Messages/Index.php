@@ -5,6 +5,7 @@ namespace App\Livewire\Messages;
 use App\Enums\ConversationType;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
+use App\Livewire\Concerns\ManagesChatAttachments;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
@@ -20,21 +21,18 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 
 #[Title('Berichten')]
 class Index extends Component
 {
+    use ManagesChatAttachments;
     use WithFileUploads;
 
     #[Url]
     public ?int $conversationId = null;
 
     public string $body = '';
-
-    /** @var array<int, TemporaryUploadedFile> */
-    public array $newChatAttachments = [];
 
     public ?int $newDmUserId = null;
 
@@ -132,22 +130,19 @@ class Index extends Component
             return;
         }
 
-        $this->validate([
-            'newChatAttachments' => ['array', 'max:10'],
-            'newChatAttachments.*' => ['file', 'max:25600'], // 25 MB each
-        ]);
+        $this->validate($this->chatAttachmentRules());
 
         $message = $conversation->postMessage(Auth::user(), $body);
 
-        foreach ($this->newChatAttachments as $file) {
-            $attachments->storeUpload($file, $message, Auth::user());
-        }
+        $this->storeChatAttachments($attachments, $message);
 
         $conversation->markReadFor(Auth::user());
 
         $this->reset('body', 'newChatAttachments');
 
         unset($this->conversations, $this->messages);
+
+        $this->dispatch('message-sent');
     }
 
     public function startDm(): void

@@ -160,10 +160,58 @@ it('shares a file in a chat message', function () {
     Livewire::test(MessagesIndex::class)
         ->call('openConversation', $conversation->id)
         ->set('newChatAttachments', [UploadedFile::fake()->image('foto.png')])
-        ->call('send');
+        ->call('send')
+        ->assertDispatched('message-sent');
 
     $message = $conversation->messages()->latest()->first();
     expect($message)->not->toBeNull();
     expect($message->attachments)->toHaveCount(1);
     expect(Attachment::count())->toBe(1);
+});
+
+it('removes a pending attachment from the tray before sending', function () {
+    $conversation = Conversation::factory()->create();
+    $conversation->users()->sync([$this->user->id]);
+
+    Livewire::test(MessagesIndex::class)
+        ->call('openConversation', $conversation->id)
+        ->set('newChatAttachments', [
+            UploadedFile::fake()->image('een.png'),
+            UploadedFile::fake()->image('twee.png'),
+        ])
+        ->call('removeNewAttachment', 0)
+        ->assertCount('newChatAttachments', 1)
+        ->call('send');
+
+    expect(Attachment::count())->toBe(1);
+});
+
+it('renders the thread with image and document attachments without errors', function () {
+    $conversation = Conversation::factory()->create();
+    $conversation->users()->sync([$this->user->id]);
+    $message = $conversation->postMessage($this->user, 'Bekijk dit');
+    app(AttachmentService::class)->storeUpload(UploadedFile::fake()->image('foto.png'), $message, $this->user);
+    app(AttachmentService::class)->storeUpload(UploadedFile::fake()->create('rapport.pdf', 8, 'application/pdf'), $message, $this->user);
+
+    Livewire::test(MessagesIndex::class)
+        ->call('openConversation', $conversation->id)
+        ->assertOk()
+        ->assertSee('foto.png')
+        ->assertSee('rapport.pdf');
+});
+
+it('streams an image attachment inline for a permitted user', function () {
+    $conversation = Conversation::factory()->create();
+    $conversation->users()->sync([$this->user->id]);
+    $message = $conversation->postMessage($this->user, 'kijk');
+    $attachment = app(AttachmentService::class)->storeUpload(UploadedFile::fake()->image('foto.png'), $message, $this->user);
+
+    $response = $this->get(route('attachments.show', $attachment));
+
+    $response->assertOk();
+    expect($response->headers->get('content-disposition'))->toContain('inline');
+
+    // A user outside the conversation cannot view it.
+    $outsider = User::factory()->create();
+    $this->actingAs($outsider)->get(route('attachments.show', $attachment))->assertForbidden();
 });

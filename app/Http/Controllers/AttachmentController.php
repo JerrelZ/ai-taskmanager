@@ -23,6 +23,19 @@ class AttachmentController extends Controller
         return Storage::disk($attachment->disk)->download($attachment->path, $attachment->filename);
     }
 
+    /**
+     * Stream the file inline so images can be embedded and previewed in a lightbox.
+     */
+    public function show(Request $request, Attachment $attachment): StreamedResponse
+    {
+        abort_unless($this->canView($request->user(), $attachment), 403);
+        abort_unless(Storage::disk($attachment->disk)->exists($attachment->path), 404);
+
+        return Storage::disk($attachment->disk)->response($attachment->path, $attachment->filename, [
+            'Content-Type' => $attachment->mime_type ?: 'application/octet-stream',
+        ]);
+    }
+
     private function canView(User $user, Attachment $attachment): bool
     {
         $attachable = $attachment->attachable;

@@ -4,6 +4,8 @@ use App\Livewire\Projects\Chat;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -32,6 +34,19 @@ test('a message can be posted to the project channel', function () {
     $channel = $this->project->channel();
     expect($channel->messages()->count())->toBe(1)
         ->and($channel->messages()->first()->user_id)->toBe($this->user->id);
+});
+
+test('a file can be shared in the project channel', function () {
+    Storage::fake('local');
+
+    Livewire::test(Chat::class, ['project' => $this->project])
+        ->set('newChatAttachments', [UploadedFile::fake()->image('schets.png')])
+        ->call('send')
+        ->assertDispatched('message-sent');
+
+    $message = $this->project->channel()->messages()->latest()->first();
+    expect($message)->not->toBeNull()
+        ->and($message->attachments)->toHaveCount(1);
 });
 
 test('a blank message is not posted', function () {
