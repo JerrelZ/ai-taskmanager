@@ -17,6 +17,8 @@ class AttachmentService
 {
     private const DISK = 'local';
 
+    public function __construct(private ImageProcessor $images) {}
+
     public function storeUpload(UploadedFile $file, Model $attachable, ?User $uploader = null): Attachment
     {
         // Read metadata before storing: on a matching disk Livewire *moves* the
@@ -25,6 +27,16 @@ class AttachmentService
         $originalName = $file->getClientOriginalName();
         $mimeType = $file->getClientMimeType();
         $size = $file->getSize() ?: 0;
+
+        // Resize images (and convert HEIC to JPEG) so they stay a sensible size
+        // and preview in the browser. Falls back to the original on failure.
+        if ($this->images->isProcessable($mimeType, $originalName) && ($realPath = $file->getRealPath()) !== false) {
+            $processed = $this->images->process($realPath, $originalName);
+
+            if ($processed !== null) {
+                return $this->storeRaw($processed['contents'], $processed['filename'], $processed['mime'], $attachable, $uploader);
+            }
+        }
 
         $path = $file->store($this->directory($attachable), self::DISK);
 

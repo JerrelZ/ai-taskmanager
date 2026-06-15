@@ -186,6 +186,58 @@ it('removes a pending attachment from the tray before sending', function () {
     expect(Attachment::count())->toBe(1);
 });
 
+it('resizes a large uploaded image down to a web-friendly size', function () {
+    $task = Task::factory()->create();
+
+    $attachment = app(AttachmentService::class)->storeUpload(
+        UploadedFile::fake()->image('groot.jpg', 4000, 3000),
+        $task,
+        $this->user,
+    );
+
+    [$width, $height] = getimagesize(Storage::disk('local')->path($attachment->path));
+    expect(max($width, $height))->toBeLessThanOrEqual(1920)
+        ->and($attachment->mime_type)->toBe('image/jpeg');
+});
+
+it('converts a HEIC photo to a JPEG that browsers can render', function () {
+    // Work on a copy so the committed fixture is never touched.
+    $heicPath = tempnam(sys_get_temp_dir(), 'heic');
+    copy(base_path('tests/Fixtures/sample.heic'), $heicPath);
+
+    $task = Task::factory()->create();
+    $attachment = app(AttachmentService::class)->storeUpload(
+        new UploadedFile($heicPath, 'IMG_1234.heic', 'image/heic', null, true),
+        $task,
+        $this->user,
+    );
+
+    expect($attachment->mime_type)->toBe('image/jpeg')
+        ->and($attachment->filename)->toBe('IMG_1234.jpg');
+
+    [$width, $height, $type] = getimagesize(Storage::disk('local')->path($attachment->path));
+    expect($type)->toBe(IMAGETYPE_JPEG)
+        ->and(max($width, $height))->toBeLessThanOrEqual(1920);
+})->skip(
+    fn () => ! class_exists(Imagick::class) || (new Imagick)->queryFormats('HEIC') === [],
+    'Imagick build has no HEIC support',
+);
+
+it('keeps the original file when an image cannot be decoded', function () {
+    $task = Task::factory()->create();
+
+    // A .heic upload whose bytes are not a real image: processing fails and we
+    // fall back to storing the original so the file remains downloadable.
+    $attachment = app(AttachmentService::class)->storeUpload(
+        UploadedFile::fake()->create('kapot.heic', 20, 'image/heic'),
+        $task,
+        $this->user,
+    );
+
+    expect($attachment->filename)->toBe('kapot.heic');
+    Storage::disk('local')->assertExists($attachment->path);
+});
+
 it('renders the thread with image and document attachments without errors', function () {
     $conversation = Conversation::factory()->create();
     $conversation->users()->sync([$this->user->id]);
