@@ -57,10 +57,12 @@ class Ready extends Component
      */
     private function baseQuery()
     {
+        $visibleProjectIds = Project::query()->visibleTo(Auth::user())->active()->pluck('id');
+
         return Task::query()
             ->roots()
             ->actionable()
-            ->whereHas('project', fn ($q) => $q->visibleTo(Auth::user())->active())
+            ->whereIn('project_id', $visibleProjectIds)
             ->with(['project', 'assignee', 'labels', 'subtasks'])
             ->withCount('comments')
             ->when($this->projectFilter, fn ($q) => $q->where('project_id', $this->projectFilter))
@@ -82,8 +84,10 @@ class Ready extends Component
      */
     public function reassess(int $taskId): void
     {
+        $visibleProjectIds = Project::query()->visibleTo(Auth::user())->pluck('id');
+
         $task = Task::query()
-            ->whereHas('project', fn ($q) => $q->visibleTo(Auth::user()))
+            ->whereIn('project_id', $visibleProjectIds)
             ->findOrFail($taskId);
 
         AssessTaskPromptReadiness::dispatch($task->id);

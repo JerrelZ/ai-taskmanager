@@ -194,6 +194,110 @@ document.addEventListener('alpine:init', () => {
     }));
 
     /**
+     * Web-push opt-in for the current device: registers a Push API subscription
+     * with the service worker and syncs it to the server, or removes it again.
+     */
+    window.Alpine.data('pushToggle', (config) => ({
+        publicKey: config.publicKey || '',
+        storeUrl: config.storeUrl,
+        destroyUrl: config.destroyUrl,
+        csrf: config.csrf,
+        supported: false,
+        subscribed: false,
+        busy: false,
+        denied: false,
+
+        async init() {
+            this.supported = 'serviceWorker' in navigator
+                && 'PushManager' in window
+                && 'Notification' in window;
+
+            if (!this.supported) {
+                return;
+            }
+
+            this.denied = Notification.permission === 'denied';
+
+            const registration = await navigator.serviceWorker.ready;
+            const subscription = await registration.pushManager.getSubscription();
+            this.subscribed = subscription !== null;
+        },
+
+        async enable() {
+            if (this.busy || !this.supported) {
+                return;
+            }
+
+            this.busy = true;
+
+            try {
+                const permission = await Notification.requestPermission();
+                this.denied = permission === 'denied';
+
+                if (permission !== 'granted') {
+                    return;
+                }
+
+                const registration = await navigator.serviceWorker.ready;
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: this.urlBase64ToUint8Array(this.publicKey),
+                });
+
+                const payload = subscription.toJSON();
+
+                await fetch(this.storeUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrf },
+                    body: JSON.stringify({ endpoint: payload.endpoint, keys: payload.keys }),
+                });
+
+                this.subscribed = true;
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        async disable() {
+            if (this.busy || !this.supported) {
+                return;
+            }
+
+            this.busy = true;
+
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                const subscription = await registration.pushManager.getSubscription();
+
+                if (subscription) {
+                    await fetch(this.destroyUrl, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrf },
+                        body: JSON.stringify({ endpoint: subscription.endpoint }),
+                    });
+
+                    await subscription.unsubscribe();
+                }
+
+                this.subscribed = false;
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const raw = window.atob(base64);
+            const output = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; ++i) {
+                output[i] = raw.charCodeAt(i);
+            }
+            return output;
+        },
+    }));
+
+    /**
      * Message thread: stays pinned to the newest message, but leaves the
      * scroll position alone while the user is reading older history.
      */

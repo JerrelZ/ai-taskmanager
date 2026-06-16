@@ -12,3 +12,7 @@ Artisan::command('inspire', function () {
 // Poll every active email account's mailbox. Requires a running scheduler
 // (`php artisan schedule:work` locally, or a `* * * * * php artisan schedule:run` cron).
 Schedule::job(new DispatchEmailSyncs)->everyFiveMinutes()->withoutOverlapping();
+
+// Send batched message digests to users who opted out of realtime notifications.
+// Runs hourly; each user is only notified once their own interval has elapsed.
+Schedule::command('messenger:send-digests')->hourly()->withoutOverlapping();

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ConversationType;
+use App\Notifications\NewMessageNotification;
 use Database\Factories\ConversationFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,6 +12,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @property int $id
@@ -18,7 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string|null $name
  * @property int|null $project_id
  * @property int|null $created_by
- * @property \Illuminate\Support\Carbon|null $last_message_at
+ * @property Carbon|null $last_message_at
  */
 class Conversation extends Model
 {
@@ -57,7 +61,7 @@ class Conversation extends Model
      */
     public function users(): BelongsToMany
     {
-        return $this->belongsToMany(User::class)->withPivot('last_read_at')->withTimestamps();
+        return $this->belongsToMany(User::class)->withPivot('last_read_at', 'muted')->withTimestamps();
     }
 
     /**
@@ -134,6 +138,28 @@ class Conversation extends Model
         ]);
     }
 
+    /**
+     * Whether the given user has muted notifications for this conversation.
+     */
+    public function isMutedFor(User $user): bool
+    {
+        return DB::table('conversation_user')
+            ->where('conversation_id', $this->id)
+            ->where('user_id', $user->id)
+            ->where('muted', true)
+            ->exists();
+    }
+
+    /**
+     * Mute or unmute notifications for the given user.
+     */
+    public function setMutedFor(User $user, bool $muted): void
+    {
+        $this->users()->syncWithoutDetaching([
+            $user->id => ['muted' => $muted],
+        ]);
+    }
+
     public function postMessage(User $user, string $body): Message
     {
         $message = $this->messages()->create([
@@ -143,6 +169,70 @@ class Conversation extends Model
 
         $this->forceFill(['last_message_at' => now()])->save();
 
+        $this->notifyParticipantsOfNewMessage($message, $user);
+
         return $message;
+    }
+
+    /**
+     * Users who should be notified of activity in this conversation, excluding
+     * the actor. DMs and groups use their explicit member list; project channels
+     * fan out to the team plus the project's client users.
+     *
+     * @return Collection<int, User>
+     */
+    public function recipientsExcept(User $actor): Collection
+    {
+        if ($this->type === ConversationType::Project) {
+            $project = $this->project;
+
+            if ($project === null) {
+                return collect();
+            }
+
+            return $project->accessibleUsers()->whereKeyNot($actor->id)->get();
+        }
+
+        return $this->users()->whereKeyNot($actor->id)->get();
+    }
+
+    /**
+     * Send a realtime notification to participants who opted into realtime
+     * delivery. Digest users are picked up later by the digest command.
+     */
+    protected function notifyParticipantsOfNewMessage(Message $message, User $sender): void
+    {
+        $mutedUserIds = DB::table('conversation_user')
+            ->where('conversation_id', $this->id)
+            ->where('muted', true)
+            ->pluck('user_id')
+            ->all();
+
+        $recipients = $this->recipientsExcept($sender)
+            ->filter(fn (User $user) => $user->wantsRealtimeMessageNotifications()
+                && ! in_array($user->id, $mutedUserIds, true));
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $url = route('messages.index', ['conversationId' => $this->id]);
+
+        foreach ($recipients as $recipient) {
+            $recipient->notify(new NewMessageNotification($message, $this->pushTitleFor($sender), $url));
+        }
+    }
+
+    /**
+     * Headline shown in the notification: just the sender for DMs, otherwise the
+     * sender alongside the group or project name.
+     */
+    protected function pushTitleFor(User $sender): string
+    {
+        return match ($this->type) {
+            ConversationType::Dm => $sender->name,
+            ConversationType::Group => __(':sender in :group', ['sender' => $sender->name, 'group' => $this->name ?? __('Groep')]),
+            ConversationType::Project => __(':sender in :project', ['sender' => $sender->name, 'project' => $this->project->name]),
+        };
     }
 }

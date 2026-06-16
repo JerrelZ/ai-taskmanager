@@ -32,6 +32,18 @@ class Chat extends Component
 
         $this->project = $project;
         $this->conversation = $project->channel();
+        $this->conversation->markReadFor($user);
+    }
+
+    /**
+     * Called by the poll loop: pull in new messages and keep the channel marked
+     * as read while the user has it open.
+     */
+    public function pollChat(): void
+    {
+        unset($this->thread);
+
+        $this->conversation->markReadFor(Auth::user());
     }
 
     /**

@@ -162,11 +162,12 @@ class TaskReadinessAssessor
             return [];
         }
 
-        return collect($missing)
-            ->filter(fn ($item) => is_string($item) && trim($item) !== '')
-            ->map(fn (string $item) => Str::limit(trim($item), 200))
-            ->values()
-            ->all();
+        return array_values(
+            collect($missing)
+                ->filter(fn ($item) => is_string($item) && trim($item) !== '')
+                ->map(fn (string $item) => Str::limit(trim($item), 200))
+                ->all()
+        );
     }
 
     /**

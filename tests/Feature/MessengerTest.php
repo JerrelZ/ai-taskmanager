@@ -54,19 +54,53 @@ test('starting a DM reuses an existing one', function () {
     expect(Conversation::where('type', ConversationType::Dm->value)->count())->toBe(1);
 });
 
-test('a group conversation can be created with members', function () {
+test('a group conversation can be created with project members', function () {
+    $project = Project::factory()->create();
     $a = User::factory()->create();
     $b = User::factory()->create();
 
     Livewire::test(Index::class)
         ->set('newGroupName', 'Design')
+        ->set('newGroupProjectId', $project->id)
         ->set('newGroupMembers', [$a->id, $b->id])
         ->call('createGroup');
 
     $group = Conversation::where('name', 'Design')->first();
 
     expect($group)->not->toBeNull()
+        ->and($group->project_id)->toBe($project->id)
         ->and($group->users()->count())->toBe(3);
+});
+
+test('creating a group requires a project', function () {
+    Livewire::test(Index::class)
+        ->set('newGroupName', 'Design')
+        ->call('createGroup')
+        ->assertHasErrors('newGroupProjectId');
+
+    expect(Conversation::where('name', 'Design')->exists())->toBeFalse();
+});
+
+test('group members are limited to people in the chosen project', function () {
+    $clientA = Client::factory()->create();
+    $clientB = Client::factory()->create();
+
+    $projectA = Project::factory()->create(['client_id' => $clientA->id]);
+
+    $clientAUser = User::factory()->client($clientA)->create();
+    $clientBUser = User::factory()->client($clientB)->create();
+
+    Livewire::test(Index::class)
+        ->set('newGroupName', 'Design')
+        ->set('newGroupProjectId', $projectA->id)
+        ->set('newGroupMembers', [$clientAUser->id, $clientBUser->id])
+        ->call('createGroup');
+
+    $group = Conversation::where('name', 'Design')->first();
+
+    expect($group)->not->toBeNull()
+        ->and($group->users->pluck('id')->all())->toContain($clientAUser->id)
+        ->and($group->users->pluck('id')->all())->not->toContain($clientBUser->id);
 });
 
 test('a message can be turned into a ticket (fallback without AI key)', function () {
@@ -101,6 +135,38 @@ test('the unread count reflects unread messages and resets on read', function ()
     $group->markReadFor($this->user);
 
     expect($this->user->fresh()->unreadMessagesCount())->toBe(0);
+});
+
+test('the open conversation is kept read while polling for new messages', function () {
+    $other = User::factory()->create();
+    $group = Conversation::factory()->create();
+    $group->users()->sync([$this->user->id, $other->id]);
+
+    $component = Livewire::test(Index::class)->call('openConversation', $group->id);
+
+    $this->travel(5)->seconds();
+    $group->postMessage($other, 'binnenkomend bericht');
+
+    expect($this->user->fresh()->unreadMessagesCount())->toBe(1);
+
+    $component->call('pollMessages');
+
+    expect($this->user->fresh()->unreadMessagesCount())->toBe(0);
+});
+
+test('a participant can mute and unmute a conversation', function () {
+    $group = Conversation::factory()->create();
+    $group->users()->sync([$this->user->id]);
+
+    $component = Livewire::test(Index::class)->call('openConversation', $group->id);
+
+    expect($group->isMutedFor($this->user))->toBeFalse();
+
+    $component->call('toggleMute');
+    expect($group->isMutedFor($this->user))->toBeTrue();
+
+    $component->call('toggleMute');
+    expect($group->isMutedFor($this->user))->toBeFalse();
 });
 
 test('clients only see their own project channel', function () {

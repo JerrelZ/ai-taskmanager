@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\MessengerNotificationMode;
 use App\Enums\UserRole;
 use App\Models\Client;
 use App\Models\User;
@@ -31,6 +32,9 @@ class UserFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'role' => UserRole::Member,
             'client_id' => null,
+            'messenger_notifications_enabled' => true,
+            'messenger_notification_mode' => MessengerNotificationMode::Realtime,
+            'messenger_digest_interval_hours' => 4,
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),

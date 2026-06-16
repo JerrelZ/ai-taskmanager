@@ -7,7 +7,7 @@
         'h-[calc(100dvh-3.5rem)]' => $this->activeConversation !== null,
         'h-[calc(100dvh-3.5rem-4rem)]' => $this->activeConversation === null,
     ])
-    wire:poll.3s
+    wire:poll.3s="pollMessages"
 >
     @php $me = auth()->user(); @endphp
 
@@ -84,10 +84,17 @@
             @php $conversation = $this->activeConversation; @endphp
             <div class="flex items-center gap-3 border-b border-zinc-200 px-4 py-4 lg:px-6 dark:border-zinc-700">
                 <flux:button wire:click="$set('conversationId', null)" variant="subtle" size="sm" icon="arrow-left" class="lg:hidden" />
-                <flux:heading size="lg" class="min-w-0 truncate">{{ $conversation->titleFor($me) }}</flux:heading>
+                <flux:heading size="lg" class="min-w-0 flex-1 truncate">{{ $conversation->titleFor($me) }}</flux:heading>
                 @if ($conversation->type === \App\Enums\ConversationType::Project && $conversation->project)
                     <flux:button :href="route('projects.board', $conversation->project)" wire:navigate size="sm" variant="ghost" icon="arrow-up-right">{{ __('Project') }}</flux:button>
                 @endif
+                <flux:button
+                    wire:click="toggleMute"
+                    size="sm"
+                    variant="ghost"
+                    :icon="$this->activeMuted ? 'bell-slash' : 'bell'"
+                    :tooltip="$this->activeMuted ? __('Meldingen aanzetten') : __('Dempen')"
+                />
             </div>
 
             <x-chat.thread
@@ -147,11 +154,26 @@
         <form wire:submit="createGroup" class="space-y-6">
             <flux:heading size="lg">{{ __('Nieuwe groep') }}</flux:heading>
             <flux:input wire:model="newGroupName" :label="__('Naam')" placeholder="{{ __('bijv. Design') }}" />
-            <flux:select wire:model="newGroupMembers" variant="listbox" multiple :label="__('Leden')" placeholder="{{ __('Kies leden') }}">
-                @foreach ($this->people as $person)
+            <flux:select wire:model.live="newGroupProjectId" :label="__('Project')" placeholder="{{ __('Kies een project') }}">
+                @foreach ($this->groupProjects as $project)
+                    <flux:select.option :value="$project->id">{{ $project->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:select
+                wire:model="newGroupMembers"
+                variant="listbox"
+                multiple
+                :label="__('Leden')"
+                placeholder="{{ __('Kies leden') }}"
+                :disabled="$newGroupProjectId === null"
+            >
+                @foreach ($this->groupMembers as $person)
                     <flux:select.option :value="$person->id">{{ $person->name }}</flux:select.option>
                 @endforeach
             </flux:select>
+            @if ($newGroupProjectId === null)
+                <flux:text size="sm" class="-mt-4 text-zinc-500">{{ __('Kies eerst een project om leden te kunnen toevoegen.') }}</flux:text>
+            @endif
             <div class="flex justify-end gap-2">
                 <flux:modal.close><flux:button variant="ghost">{{ __('Annuleren') }}</flux:button></flux:modal.close>
                 <flux:button type="submit" variant="primary">{{ __('Aanmaken') }}</flux:button>

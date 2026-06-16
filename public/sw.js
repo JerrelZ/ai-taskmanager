@@ -15,6 +15,51 @@ self.addEventListener('activate', (event) => {
     );
 });
 
+// Show incoming web-push notifications. Payload is JSON shaped by the
+// laravel-notification-channels/webpush package.
+self.addEventListener('push', (event) => {
+    if (!event.data) {
+        return;
+    }
+
+    let payload = {};
+    try {
+        payload = event.data.json();
+    } catch (e) {
+        payload = { title: 'Tasks', body: event.data.text() };
+    }
+
+    const title = payload.title || 'Tasks';
+    const options = {
+        body: payload.body || '',
+        icon: payload.icon || '/icon-192.png',
+        badge: payload.badge || '/icon-192.png',
+        tag: payload.tag || undefined,
+        data: payload.data || {},
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Focus an existing tab (or open one) at the notification's target URL.
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+
+    const url = (event.notification.data && event.notification.data.url) || '/';
+
+    event.waitUntil(
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+            for (const client of clients) {
+                if ('focus' in client) {
+                    client.navigate(url);
+                    return client.focus();
+                }
+            }
+            return self.clients.openWindow(url);
+        })
+    );
+});
+
 // Network-first for navigations so the app stays fresh, with a cached
 // fallback (the last-seen page, then the offline page) when offline.
 // Other requests pass through untouched.

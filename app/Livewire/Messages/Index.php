@@ -38,6 +38,8 @@ class Index extends Component
 
     public string $newGroupName = '';
 
+    public ?int $newGroupProjectId = null;
+
     /** @var array<int, int> */
     public array $newGroupMembers = [];
 
@@ -107,6 +109,54 @@ class Index extends Component
             ->get();
     }
 
+    /**
+     * Projects the user can start a group within.
+     *
+     * @return Collection<int, Project>
+     */
+    #[Computed]
+    public function groupProjects(): Collection
+    {
+        return Project::query()->visibleTo(Auth::user())->active()->orderBy('name')->get();
+    }
+
+    /**
+     * Members selectable for a new group: only people with access to the chosen
+     * project, so a group can never mix people from different projects.
+     *
+     * @return Collection<int, User>
+     */
+    #[Computed]
+    public function groupMembers(): Collection
+    {
+        $project = $this->visibleProject($this->newGroupProjectId);
+
+        if ($project === null) {
+            return collect();
+        }
+
+        return $project->accessibleUsers()->whereKeyNot(Auth::id())->orderBy('name')->get();
+    }
+
+    /**
+     * Resolve a project the current user is allowed to start a group in.
+     */
+    private function visibleProject(?int $id): ?Project
+    {
+        if ($id === null) {
+            return null;
+        }
+
+        return Project::query()->visibleTo(Auth::user())->active()->whereKey($id)->first();
+    }
+
+    public function updatedNewGroupProjectId(): void
+    {
+        $this->newGroupMembers = [];
+
+        unset($this->groupMembers);
+    }
+
     public function openConversation(int $id): void
     {
         $conversation = Conversation::find($id);
@@ -118,7 +168,66 @@ class Index extends Component
         $this->conversationId = $conversation->id;
         $conversation->markReadFor(Auth::user());
 
-        unset($this->conversations, $this->activeConversation, $this->messages);
+        unset($this->conversations, $this->activeConversation, $this->messages, $this->activeMuted);
+    }
+
+    /**
+     * Whether the current user has muted the open conversation.
+     */
+    #[Computed]
+    public function activeMuted(): bool
+    {
+        if ($this->conversationId === null) {
+            return false;
+        }
+
+        $conversation = Conversation::find($this->conversationId);
+
+        return $conversation !== null && $conversation->isMutedFor(Auth::user());
+    }
+
+    public function toggleMute(): void
+    {
+        if ($this->conversationId === null) {
+            return;
+        }
+
+        $conversation = Conversation::find($this->conversationId);
+
+        if ($conversation === null || ! $conversation->canAccess(Auth::user())) {
+            return;
+        }
+
+        $user = Auth::user();
+        $conversation->setMutedFor($user, ! $conversation->isMutedFor($user));
+
+        unset($this->activeMuted);
+    }
+
+    /**
+     * Called by the poll loop: pull in new messages and keep the open
+     * conversation marked as read so its unread badge does not climb while the
+     * user is looking at it.
+     */
+    public function pollMessages(): void
+    {
+        unset($this->conversations, $this->activeConversation, $this->thread, $this->messages);
+
+        if ($this->conversationId === null) {
+            return;
+        }
+
+        $conversation = Conversation::with('users')->find($this->conversationId);
+
+        if ($conversation === null || ! $conversation->canAccess(Auth::user())) {
+            return;
+        }
+
+        if ($conversation->unreadCountFor(Auth::user()) > 0) {
+            $conversation->markReadFor(Auth::user());
+
+            unset($this->conversations);
+        }
     }
 
     public function send(AttachmentService $attachments): void
@@ -183,24 +292,39 @@ class Index extends Component
 
         $validated = $this->validate([
             'newGroupName' => 'required|string|max:255',
+            'newGroupProjectId' => 'required|integer',
+            'newGroupMembers' => 'array',
         ]);
 
-        $conversation = Conversation::create([
-            'type' => ConversationType::Group,
-            'name' => $validated['newGroupName'],
-            'created_by' => Auth::id(),
-            'last_message_at' => now(),
-        ]);
+        $project = $this->visibleProject($validated['newGroupProjectId']);
 
-        $members = User::query()
+        if ($project === null) {
+            $this->addError('newGroupProjectId', __('Kies een geldig project.'));
+
+            return;
+        }
+
+        // Members must all have access to the chosen project, so a group can
+        // never span people from different projects.
+        $members = $project->accessibleUsers()
             ->whereIn('id', $this->newGroupMembers)
             ->pluck('id')
             ->push(Auth::id())
             ->unique()
             ->all();
+
+        $conversation = Conversation::create([
+            'type' => ConversationType::Group,
+            'name' => $validated['newGroupName'],
+            'project_id' => $project->id,
+            'created_by' => Auth::id(),
+            'last_message_at' => now(),
+        ]);
+
         $conversation->users()->sync($members);
 
-        $this->reset('newGroupName', 'newGroupMembers');
+        $this->reset('newGroupName', 'newGroupProjectId', 'newGroupMembers');
+        unset($this->groupMembers);
         Flux::modal('new-group')->close();
 
         $this->openConversation($conversation->id);

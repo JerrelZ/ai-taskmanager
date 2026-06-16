@@ -1,4 +1,4 @@
-<div wire:poll.30s>
+<div wire:poll.15s>
     <flux:dropdown position="bottom" align="end">
         <flux:button variant="subtle" size="sm" icon="bell" class="relative">
             @if ($this->unreadCount > 0)

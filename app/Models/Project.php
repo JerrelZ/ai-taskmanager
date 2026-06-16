@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\ConversationType;
 use App\Enums\ProjectStatus;
+use App\Enums\UserRole;
 use Database\Factories\ProjectFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -140,7 +142,7 @@ class Project extends Model
      */
     public function conversation(): HasOne
     {
-        return $this->hasOne(Conversation::class)->where('type', \App\Enums\ConversationType::Project->value);
+        return $this->hasOne(Conversation::class)->where('type', ConversationType::Project->value);
     }
 
     /**
@@ -149,8 +151,25 @@ class Project extends Model
     public function channel(): Conversation
     {
         return Conversation::firstOrCreate(
-            ['project_id' => $this->id, 'type' => \App\Enums\ConversationType::Project->value],
+            ['project_id' => $this->id, 'type' => ConversationType::Project->value],
             ['name' => $this->name],
         );
+    }
+
+    /**
+     * Users who have access to this project: the internal team plus, when the
+     * project belongs to a client, that client's users.
+     *
+     * @return Builder<User>
+     */
+    public function accessibleUsers(): Builder
+    {
+        return User::query()->where(function (Builder $query) {
+            $query->whereIn('role', [UserRole::Admin->value, UserRole::Member->value]);
+
+            if ($this->client_id !== null) {
+                $query->orWhere('client_id', $this->client_id);
+            }
+        });
     }
 }
