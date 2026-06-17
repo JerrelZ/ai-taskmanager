@@ -54,6 +54,15 @@ test('starting a DM reuses an existing one', function () {
     expect(Conversation::where('type', ConversationType::Dm->value)->count())->toBe(1);
 });
 
+test('starting a DM without choosing a person shows an error and creates nothing', function () {
+    Livewire::test(Index::class)
+        ->set('newDmUserId', null)
+        ->call('startDm')
+        ->assertHasErrors('newDmUserId');
+
+    expect(Conversation::where('type', ConversationType::Dm->value)->count())->toBe(0);
+});
+
 test('a group conversation can be created with project members', function () {
     $project = Project::factory()->create();
     $a = User::factory()->create();

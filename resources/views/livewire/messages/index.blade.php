@@ -120,7 +120,7 @@
             <flux:heading size="lg">{{ __('Nieuw gesprek') }}</flux:heading>
             <flux:select wire:model="newDmUserId" :label="__('Met wie?')" placeholder="{{ __('Kies persoon') }}">
                 @foreach ($this->people as $person)
-                    <flux:select.option :value="$person->id">{{ $person->name }}</flux:select.option>
+                    <flux:select.option :value="$person->id">{{ $person->name }} ({{ $person->email }})</flux:select.option>
                 @endforeach
             </flux:select>
             <div class="flex justify-end gap-2">
@@ -168,7 +168,7 @@
                 :disabled="$newGroupProjectId === null"
             >
                 @foreach ($this->groupMembers as $person)
-                    <flux:select.option :value="$person->id">{{ $person->name }}</flux:select.option>
+                    <flux:select.option :value="$person->id">{{ $person->name }} ({{ $person->email }})</flux:select.option>
                 @endforeach
             </flux:select>
             @if ($newGroupProjectId === null)

@@ -258,12 +258,12 @@ class Index extends Component
     {
         abort_unless(Auth::user()->isTeam(), 403);
 
+        $this->validate(
+            ['newDmUserId' => 'required|integer|exists:users,id'],
+            ['newDmUserId.required' => __('Kies een persoon om mee te chatten.')],
+        );
+
         $otherId = $this->newDmUserId;
-
-        if ($otherId === null) {
-            return;
-        }
-
         $me = Auth::id();
 
         $conversation = Conversation::query()
