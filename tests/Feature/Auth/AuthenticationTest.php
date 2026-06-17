@@ -24,6 +24,24 @@ test('users can authenticate using the login screen', function () {
     $this->assertAuthenticated();
 });
 
+test('remembered logins issue a persistent recaller cookie', function () {
+    $user = User::factory()->create();
+
+    $response = $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+        'remember' => 'on',
+    ]);
+
+    $this->assertAuthenticated();
+
+    $recaller = collect($response->headers->getCookies())
+        ->first(fn ($cookie) => str_starts_with($cookie->getName(), 'remember_web_'));
+
+    expect($recaller)->not->toBeNull()
+        ->and($user->fresh()->remember_token)->not->toBeNull();
+});
+
 test('users can not authenticate with invalid password', function () {
     $user = User::factory()->create();
 
