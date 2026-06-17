@@ -206,6 +206,7 @@ document.addEventListener('alpine:init', () => {
         subscribed: false,
         busy: false,
         denied: false,
+        error: false,
 
         async init() {
             this.supported = 'serviceWorker' in navigator
@@ -229,8 +230,13 @@ document.addEventListener('alpine:init', () => {
             }
 
             this.busy = true;
+            this.error = false;
 
             try {
+                if (!this.publicKey) {
+                    throw new Error('Missing VAPID public key; push is not configured on the server.');
+                }
+
                 const permission = await Notification.requestPermission();
                 this.denied = permission === 'denied';
 
@@ -246,13 +252,21 @@ document.addEventListener('alpine:init', () => {
 
                 const payload = subscription.toJSON();
 
-                await fetch(this.storeUrl, {
+                const response = await fetch(this.storeUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrf },
                     body: JSON.stringify({ endpoint: payload.endpoint, keys: payload.keys }),
                 });
 
+                if (!response.ok) {
+                    throw new Error(`Storing the push subscription failed (HTTP ${response.status}).`);
+                }
+
                 this.subscribed = true;
+            } catch (error) {
+                console.error('Enabling push notifications failed:', error);
+                this.error = true;
+                this.subscribed = false;
             } finally {
                 this.busy = false;
             }

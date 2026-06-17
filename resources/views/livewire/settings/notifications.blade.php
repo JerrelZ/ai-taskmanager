@@ -71,6 +71,12 @@
                 </flux:callout>
             </template>
 
+            <template x-if="error">
+                <flux:callout variant="danger" icon="exclamation-triangle">
+                    {{ __('Could not enable push on this device. Please try again.') }}
+                </flux:callout>
+            </template>
+
             <div x-show="supported" class="flex flex-wrap items-center gap-3">
                 <flux:button x-show="!subscribed" x-on:click="enable()" x-bind:disabled="busy || denied" icon="bell">
                     {{ __('Enable on this device') }}
