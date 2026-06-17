@@ -34,8 +34,8 @@
             {{-- Body: main + sidebar --}}
             <div class="flex flex-1 flex-col gap-6 overflow-hidden pt-4 lg:flex-row lg:gap-8">
                 {{-- Main column --}}
-                <div class="flex-1 space-y-6 overflow-y-auto pe-1 lg:pe-3">
-                    <flux:input wire:model.blur="title" variant="filled" class="font-display !text-2xl" placeholder="{{ __('Task titel') }}" />
+                <div class="flex-1 space-y-4 overflow-y-auto pe-1 lg:space-y-6 lg:pe-3">
+                    <flux:input wire:model.blur="title" variant="filled" class="font-display !text-xl lg:!text-2xl" placeholder="{{ __('Task titel') }}" />
 
                     <div x-data="{ editing: false }" wire:key="desc-{{ $task->id }}">
                         <flux:subheading class="mb-1">{{ __('Omschrijving') }}</flux:subheading>
@@ -180,8 +180,25 @@
                             @endforelse
                         </div>
 
-                        <form wire:submit="addComment" class="flex items-end gap-2">
-                            <flux:textarea wire:model="newComment" rows="1" class="flex-1" placeholder="{{ __('Schrijf een reactie... (@naam om te taggen)') }}" />
+                        <form wire:submit="addComment" x-data="mentionField(@js($this->users->pluck('name')->values()))" class="flex items-end gap-2">
+                            <div class="relative flex-1">
+                                <textarea
+                                    x-ref="input"
+                                    wire:model="newComment"
+                                    x-on:input="onInput()"
+                                    x-on:keydown="onKeydown($event)"
+                                    rows="1"
+                                    placeholder="{{ __('Schrijf een reactie…') }}"
+                                    class="block max-h-32 w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-base text-zinc-800 placeholder-zinc-400 focus:border-brand-500 focus:outline-none focus:ring-0 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                                ></textarea>
+
+                                {{-- Mention autocomplete --}}
+                                <div x-show="open" x-cloak class="absolute bottom-full start-0 z-20 mb-1 max-h-48 w-64 max-w-[80vw] overflow-y-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+                                    <template x-for="(name, i) in matches" :key="name">
+                                        <button type="button" x-on:mousedown.prevent="choose(name)" :class="i === active ? 'bg-brand-50 dark:bg-brand-950/40' : ''" class="block w-full px-3 py-2 text-start text-sm text-zinc-700 dark:text-zinc-200">@<span x-text="name"></span></button>
+                                    </template>
+                                </div>
+                            </div>
                             <flux:button type="submit" variant="primary" icon="paper-airplane" />
                         </form>
                     </div>

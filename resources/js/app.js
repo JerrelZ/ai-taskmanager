@@ -43,6 +43,50 @@ const EMOJI_CATEGORIES = [
     },
 ];
 
+/**
+ * Find up to six conversation members whose name matches the @mention being
+ * typed at the caret. Returns an empty list when the caret isn't in a mention.
+ */
+function mentionMatches(el, names) {
+    if (!el) {
+        return [];
+    }
+
+    const upto = el.value.slice(0, el.selectionStart);
+    const match = upto.match(/@([\w]*)$/);
+
+    if (!match) {
+        return [];
+    }
+
+    const query = match[1].toLowerCase();
+
+    return names
+        .filter((name) => name.toLowerCase().includes(query))
+        .slice(0, 6);
+}
+
+/**
+ * Replace the half-typed @mention at the caret with the chosen name and keep
+ * the caret positioned right after it.
+ */
+function insertMention(el, name) {
+    if (!el) {
+        return;
+    }
+
+    const pos = el.selectionStart;
+    const before = el.value.slice(0, pos).replace(/@([\w]*)$/, '@' + name + ' ');
+    const after = el.value.slice(pos);
+
+    el.value = before + after;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+
+    const caret = before.length;
+    el.setSelectionRange(caret, caret);
+    el.focus();
+}
+
 document.addEventListener('alpine:init', () => {
     /**
      * WhatsApp-style chat composer: auto-growing textarea, Enter-to-send on
@@ -82,23 +126,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         detectMention() {
-            const el = this.input;
-            if (!el) {
-                return;
-            }
-
-            const upto = el.value.slice(0, el.selectionStart);
-            const match = upto.match(/@([\w]*)$/);
-
-            if (!match) {
-                this.open = false;
-                return;
-            }
-
-            const query = match[1].toLowerCase();
-            this.matches = this.names
-                .filter((name) => name.toLowerCase().includes(query))
-                .slice(0, 6);
+            this.matches = mentionMatches(this.input, this.names);
             this.active = 0;
             this.open = this.matches.length > 0;
         },
@@ -138,21 +166,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         choose(name) {
-            const el = this.input;
-            if (!el) {
-                return;
-            }
-
-            const pos = el.selectionStart;
-            const before = el.value.slice(0, pos).replace(/@([\w]*)$/, '@' + name + ' ');
-            const after = el.value.slice(pos);
-
-            el.value = before + after;
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-
-            const caret = before.length;
-            el.setSelectionRange(caret, caret);
-            el.focus();
+            insertMention(this.input, name);
             this.open = false;
             this.autosize();
         },
@@ -190,6 +204,52 @@ document.addEventListener('alpine:init', () => {
                 this.autosize();
                 this.input?.focus();
             });
+        },
+    }));
+
+    /**
+     * Standalone @mention autocomplete for a single textarea (e.g. the task
+     * comment box). Reuses the chat composer's detection and insertion so both
+     * inputs behave identically, including on touch devices.
+     */
+    window.Alpine.data('mentionField', (names) => ({
+        names,
+        open: false,
+        matches: [],
+        active: 0,
+
+        get input() {
+            return this.$refs.input;
+        },
+
+        onInput() {
+            this.matches = mentionMatches(this.input, this.names);
+            this.active = 0;
+            this.open = this.matches.length > 0;
+        },
+
+        onKeydown(event) {
+            if (!this.open) {
+                return;
+            }
+
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                this.active = (this.active + 1) % this.matches.length;
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                this.active = (this.active - 1 + this.matches.length) % this.matches.length;
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                this.choose(this.matches[this.active]);
+            } else if (event.key === 'Escape') {
+                this.open = false;
+            }
+        },
+
+        choose(name) {
+            insertMention(this.input, name);
+            this.open = false;
         },
     }));
 

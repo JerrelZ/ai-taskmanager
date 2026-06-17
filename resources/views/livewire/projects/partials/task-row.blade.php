@@ -3,8 +3,14 @@
     wire:key="row-{{ $task->id }}"
     wire:sort:item="{{ $task->id }}"
     wire:click="openTask({{ $task->id }})"
-    class="group flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-3 py-2 transition hover:border-zinc-200 hover:bg-zinc-50 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/50"
+    class="group flex cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 py-2 transition hover:border-zinc-200 hover:bg-zinc-50 sm:gap-3 sm:px-3 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/50"
 >
+    <button type="button" wire:sort:handle x-on:click.stop
+        class="flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-zinc-300 transition hover:text-zinc-500 active:cursor-grabbing lg:opacity-0 lg:group-hover:opacity-100 dark:text-zinc-600 dark:hover:text-zinc-300"
+        aria-label="{{ __('Versleep') }}">
+        <flux:icon name="bars-3" variant="micro" />
+    </button>
+
     @if ($task->priority !== \App\Enums\TaskPriority::None)
         <flux:tooltip :content="$task->priority->label()">
             <flux:icon :name="$task->priority->icon()" variant="micro" class="shrink-0 text-{{ $task->priority->color() }}-500" />

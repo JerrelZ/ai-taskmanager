@@ -8,7 +8,14 @@
         'opacity-60' => $task->isComplete(),
     ])
 >
-    <div class="mb-1 font-mono text-[0.7rem] tracking-tight text-zinc-400">{{ $task->identifier() }}</div>
+    <div class="mb-1 flex items-center justify-between gap-2">
+        <span class="font-mono text-[0.7rem] tracking-tight text-zinc-400">{{ $task->identifier() }}</span>
+        <button type="button" wire:sort:handle x-on:click.stop
+            class="-me-1 flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-zinc-300 transition hover:text-zinc-500 active:cursor-grabbing lg:opacity-0 lg:group-hover:opacity-100 dark:text-zinc-600 dark:hover:text-zinc-300"
+            aria-label="{{ __('Versleep kaart') }}">
+            <flux:icon name="bars-3" variant="micro" />
+        </button>
+    </div>
     <div class="flex items-start justify-between gap-2">
         <p @class([
             'text-sm font-medium text-zinc-800 dark:text-zinc-100',

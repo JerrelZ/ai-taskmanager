@@ -85,6 +85,22 @@
     @apply bg-white/20 !text-white;
 }
 
+/* Drag-and-drop feedback for the kanban/list board (Livewire wire:sort).
+   The moving clone is already shown by Sortable at 0.8 opacity; here we make
+   the dragged card and the drop slot unmistakable, especially on touch. */
+.sortable-drag,
+.sortable-fallback {
+    @apply rounded-lg opacity-90 shadow-2xl ring-2 ring-brand-500;
+}
+
+.sortable-ghost {
+    @apply rounded-lg opacity-50 outline-2 outline-dashed outline-brand-400;
+}
+
+.sortable-chosen {
+    @apply cursor-grabbing;
+}
+
 /* Editorial display headings — large serif with tight tracking. */
 .font-display {
     font-family: var(--font-serif);

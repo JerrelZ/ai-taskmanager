@@ -115,6 +115,14 @@ test('a comment can be posted', function () {
         ->and($comment->user_id)->toBe($this->user->id);
 });
 
+test('the comment composer is wired for mention autocomplete', function () {
+    $mate = User::factory()->create(['name' => 'Sanne Mention']);
+
+    openDetail()
+        ->assertSeeHtml('x-data="mentionField(')
+        ->assertSeeHtml($mate->name);
+});
+
 test('a task can be deleted', function () {
     openDetail()->call('deleteTask');
 
