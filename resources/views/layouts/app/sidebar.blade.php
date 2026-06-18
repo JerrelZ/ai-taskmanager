@@ -73,6 +73,10 @@
                 </flux:radio.group>
             </div>
 
+            <div class="px-2 pb-2">
+                <livewire:workspace-switcher />
+            </div>
+
             <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
         </flux:sidebar>
 

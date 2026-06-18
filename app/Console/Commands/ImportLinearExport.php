@@ -2,70 +2,70 @@
 
 namespace App\Console\Commands;
 
-use App\Enums\ProjectStatus;
-use App\Enums\TaskPriority;
-use App\Enums\TaskStatus;
-use App\Enums\UserRole;
-use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
-use App\Models\Workspace;
 use App\Services\AttachmentService;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 #[Signature('linear:import
     {file? : Path to the Linear CSV export}
-    {--id-prefix=REVBOOS : Only import tickets whose ID contains this prefix}
-    {--project-key=REVBOOS : Key for the project the tickets land in}
-    {--project-name=RevBoost : Name for the project the tickets land in}
-    {--admin-email=jerrel@zendos.nl : Email that becomes user 1 (admin)}
-    {--password=password : Plain password assigned to every created user}
-    {--no-attachments : Skip downloading ticket attachments}
-    {--force : Wipe existing data without confirmation}')]
-#[Description('Import open (non-completed) RevBoost tickets from a Linear CSV export, creating users, the project and downloading attachments')]
+    {--owner=jerrel@zendos.nl : Email of the workspace owner the import lands in}
+    {--no-attachments : Skip downloading ticket attachments}')]
+#[Description('Import a Linear CSV export into the owner\'s workspace: one client + project per team, with parent links and attachments. Non-destructive and idempotent per team.')]
 class ImportLinearExport extends Command
 {
     /**
-     * Domain tables cleared before a fresh import (FK order does not matter
-     * because checks are disabled during the wipe).
+     * Map a Linear team onto the client name and project key it imports into.
+     * Unknown teams fall back to the team name and a key derived from it.
      *
-     * @var list<string>
+     * @var array<string, array{client: string, key: string}>
      */
-    private const WIPE_TABLES = [
-        'attachments', 'label_task', 'labels', 'comments', 'activities', 'tasks',
-        'projects', 'clients', 'conversation_user', 'conversations', 'messages',
-        'email_contact_links', 'email_messages', 'email_threads', 'email_folders',
-        'email_accounts', 'reply_templates', 'claude_code_runs', 'notifications', 'users',
-        'workspaces',
+    private const TEAM_MAP = [
+        'Blogmatchers' => ['client' => 'Blogmatch', 'key' => 'BLO'],
+        'RevBoost' => ['client' => 'RevBoost', 'key' => 'REV'],
+        'BCC-V2' => ['client' => 'BCC', 'key' => 'BCC'],
     ];
 
     /**
-     * The workspace every imported record belongs to.
+     * Map Linear statuses onto our TaskStatus enum values.
+     *
+     * @var array<string, string>
      */
-    private Workspace $workspace;
+    private const STATUS_MAP = [
+        'Backlog' => 'backlog',
+        'Todo' => 'todo',
+        'In Progress' => 'in_progress',
+        'Done' => 'done',
+        'Canceled' => 'canceled',
+    ];
 
     /**
-     * Statuses considered "completed" and therefore skipped (matches the app's
-     * own Task::isComplete() definition).
+     * Map Linear priorities onto our TaskPriority enum values.
      *
-     * @var list<string>
+     * @var array<string, string>
      */
-    private const COMPLETED_STATUSES = ['Done', 'Canceled'];
+    private const PRIORITY_MAP = [
+        'Urgent' => 'urgent',
+        'High' => 'high',
+        'Medium' => 'medium',
+        'Low' => 'low',
+    ];
 
     /**
-     * Cache of created/looked-up users, keyed by lowercased email.
-     *
-     * @var array<string, User>
+     * The workspace every imported record lands in.
      */
-    private array $users = [];
+    private int $workspaceId;
+
+    /**
+     * The owner downloaded attachments are attributed to.
+     */
+    private User $owner;
 
     public function handle(AttachmentService $attachments): int
     {
@@ -77,80 +77,210 @@ class ImportLinearExport extends Command
             return self::FAILURE;
         }
 
-        if (! $this->option('force') && ! $this->confirm('Dit verwijdert ALLE bestaande data (users, projecten, tickets, e-mail, chat). Doorgaan?')) {
+        $owner = User::firstWhere('email', $this->option('owner'));
+
+        if ($owner === null || $owner->workspace_id === null) {
+            $this->error("Eigenaar {$this->option('owner')} of diens workspace bestaat niet. Registreer eerst en draai dit dan opnieuw.");
+
             return self::FAILURE;
         }
 
-        $this->wipe();
+        $this->owner = $owner;
+        $this->workspaceId = $owner->workspace_id;
 
-        $this->workspace = Workspace::create(['name' => $this->option('project-name').' werkruimte']);
+        $rowsByTeam = $this->readRows($path);
 
-        $project = $this->createProject();
-        $admin = $this->resolveUser($this->option('admin-email'), UserRole::Admin);
+        if ($rowsByTeam === []) {
+            $this->error('Geen rijen gevonden in de CSV.');
 
-        $rows = $this->readMatchingRows($path);
-        $this->info(count($rows).' open '.$this->option('id-prefix').'-tickets gevonden.');
+            return self::FAILURE;
+        }
 
-        $imported = 0;
-        $attachmentCount = 0;
-
-        $this->withProgressBar($rows, function (array $row) use ($project, $attachments, &$imported, &$attachmentCount): void {
-            $task = $this->importTask($row, $project, $imported);
-            $imported++;
-
-            if (! $this->option('no-attachments')) {
-                $attachmentCount += $this->importAttachments($task, $row['Description'], $attachments);
-            }
-        });
-
-        $this->newLine(2);
-        $this->info("Klaar: {$imported} tickets, ".count($this->users)." users, {$attachmentCount} bijlagen.");
-        $this->line("Admin: {$admin->email} (id {$admin->id}), wachtwoord '{$this->option('password')}'.");
+        foreach ($rowsByTeam as $team => $rows) {
+            $this->importTeam((string) $team, $rows, $attachments);
+        }
 
         return self::SUCCESS;
     }
 
     /**
-     * Newest "Export ... .csv" file in the project root, if any.
+     * Import one Linear team into its own client + project. Skips the team when
+     * its client already exists in the workspace, so re-runs are safe.
+     *
+     * @param  list<array{number: int|null, parent: int|null, raw_description: string, attributes: array<string, mixed>}>  $rows
      */
-    private function latestExport(): ?string
+    private function importTeam(string $team, array $rows, AttachmentService $attachments): void
     {
-        $files = glob(base_path('Export*.csv')) ?: [];
+        $mapping = self::TEAM_MAP[$team] ?? null;
+        $clientName = $mapping['client'] ?? $team;
+        $baseKey = $mapping['key'] ?? $this->deriveKey($team);
 
-        return $files[0] ?? null;
-    }
+        $exists = DB::table('clients')
+            ->where('workspace_id', $this->workspaceId)
+            ->where('name', $clientName)
+            ->exists();
 
-    private function wipe(): void
-    {
-        Schema::disableForeignKeyConstraints();
+        if ($exists) {
+            $this->warn("Team '{$team}': client '{$clientName}' bestaat al — overgeslagen.");
 
-        foreach (self::WIPE_TABLES as $table) {
-            if (Schema::hasTable($table)) {
-                DB::table($table)->truncate();
-            }
+            return;
         }
 
-        Schema::enableForeignKeyConstraints();
-    }
+        $now = now();
 
-    private function createProject(): Project
-    {
-        return Project::create([
-            'workspace_id' => $this->workspace->id,
-            'name' => $this->option('project-name'),
-            'key' => $this->option('project-key'),
+        $clientId = DB::table('clients')->insertGetId([
+            'workspace_id' => $this->workspaceId,
+            'name' => $clientName,
             'color' => 'blue',
-            'status' => ProjectStatus::Active,
-            'position' => 0,
+            'created_at' => $now,
+            'updated_at' => $now,
         ]);
+
+        $projectId = DB::table('projects')->insertGetId([
+            'workspace_id' => $this->workspaceId,
+            'client_id' => $clientId,
+            'name' => $clientName,
+            'key' => $this->uniqueProjectKey($baseKey),
+            'color' => 'blue',
+            'status' => 'active',
+            'position' => (int) DB::table('projects')->where('workspace_id', $this->workspaceId)->max('position') + 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $this->insertTasks($rows, $projectId);
+        $this->linkParents($rows, $projectId);
+
+        $attachmentCount = $this->option('no-attachments')
+            ? 0
+            : $this->downloadAttachments($rows, $projectId, $attachments);
+
+        $this->info("Team '{$team}' → client '{$clientName}': ".count($rows)." tickets, {$attachmentCount} bijlagen.");
     }
 
     /**
-     * Read, filter and column-map the CSV into associative rows.
+     * Bulk-insert the tickets. We use the query builder so no model events fire
+     * (the import must not trigger the per-task AI-readiness jobs). Creator and
+     * assignee are intentionally left unset so the import never creates users in
+     * the owner's workspace.
      *
-     * @return list<array<string, string>>
+     * @param  list<array{number: int|null, parent: int|null, raw_description: string, attributes: array<string, mixed>}>  $rows
      */
-    private function readMatchingRows(string $path): array
+    private function insertTasks(array $rows, int $projectId): void
+    {
+        $records = [];
+
+        foreach (array_values($rows) as $position => $row) {
+            $records[] = [
+                'project_id' => $projectId,
+                'number' => $row['number'],
+                'parent_id' => null,
+                'position' => $position,
+                'rank' => $position,
+                ...$row['attributes'],
+            ];
+        }
+
+        foreach (array_chunk($records, 200) as $chunk) {
+            DB::table('tasks')->insert($chunk);
+        }
+    }
+
+    /**
+     * Second pass: wire up parent/subtask links by matching the original Linear
+     * numbers within this project.
+     *
+     * @param  list<array{number: int|null, parent: int|null, raw_description: string, attributes: array<string, mixed>}>  $rows
+     */
+    private function linkParents(array $rows, int $projectId): void
+    {
+        $idByNumber = DB::table('tasks')
+            ->where('project_id', $projectId)
+            ->pluck('id', 'number');
+
+        foreach ($rows as $row) {
+            if ($row['parent'] === null || $row['number'] === null) {
+                continue;
+            }
+
+            $parentId = $idByNumber[$row['parent']] ?? null;
+            $childId = $idByNumber[$row['number']] ?? null;
+
+            if ($parentId !== null && $childId !== null) {
+                DB::table('tasks')->where('id', $childId)->update(['parent_id' => $parentId]);
+            }
+        }
+    }
+
+    /**
+     * Download every Linear-hosted attachment referenced in a ticket description
+     * and link it to the task. Returns how many were stored.
+     *
+     * @param  list<array{number: int|null, parent: int|null, raw_description: string, attributes: array<string, mixed>}>  $rows
+     */
+    private function downloadAttachments(array $rows, int $projectId, AttachmentService $attachments): int
+    {
+        $idByNumber = DB::table('tasks')
+            ->where('project_id', $projectId)
+            ->pluck('id', 'number');
+
+        $stored = 0;
+
+        foreach ($rows as $row) {
+            if ($row['number'] === null) {
+                continue;
+            }
+
+            $taskId = $idByNumber[$row['number']] ?? null;
+
+            preg_match_all('/(!?)\[([^\]]*)\]\((https:\/\/uploads\.linear\.app\/[^)\s]+)\)/', $row['raw_description'], $matches, PREG_SET_ORDER);
+
+            if ($taskId === null || $matches === []) {
+                continue;
+            }
+
+            $task = Task::find($taskId);
+
+            if ($task === null) {
+                continue;
+            }
+
+            foreach ($matches as $match) {
+                $filename = $this->attachmentFilename($match[2], $match[3]);
+
+                try {
+                    $response = Http::timeout(30)->get($match[3]);
+
+                    if (! $response->successful()) {
+                        $this->warn("{$task->identifier()}: bijlage {$filename} overslaan (HTTP {$response->status()}).");
+
+                        continue;
+                    }
+
+                    $attachments->storeRaw(
+                        $response->body(),
+                        $filename,
+                        $response->header('Content-Type') ?: null,
+                        $task,
+                        $this->owner,
+                    );
+
+                    $stored++;
+                } catch (\Throwable $e) {
+                    $this->warn("{$task->identifier()}: bijlage {$filename} mislukt ({$e->getMessage()}).");
+                }
+            }
+        }
+
+        return $stored;
+    }
+
+    /**
+     * Read and normalise every ticket, grouped by Linear team.
+     *
+     * @return array<string, list<array{number: int|null, parent: int|null, raw_description: string, attributes: array<string, mixed>}>>
+     */
+    private function readRows(string $path): array
     {
         $handle = fopen($path, 'r');
 
@@ -167,96 +297,61 @@ class ImportLinearExport extends Command
         }
 
         $header = array_map(fn ($value) => (string) $value, $header);
-        $prefix = $this->option('id-prefix');
-        $rows = [];
+        $byTeam = [];
 
         while (($data = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
             /** @var array<string, string> $row */
             $row = array_combine($header, $data);
 
-            if (! str_contains($row['ID'] ?? '', $prefix)) {
+            $team = trim($row['Team'] ?? '');
+
+            if ($team === '') {
                 continue;
             }
 
-            if (in_array($row['Status'] ?? '', self::COMPLETED_STATUSES, true)) {
-                continue;
-            }
+            $title = trim($row['Title'] ?? '');
+            $rawDescription = (string) ($row['Description'] ?? '');
+            $createdAt = $this->parseDate($row['Created'] ?? '') ?? now();
 
-            $rows[] = $row;
+            $byTeam[$team][] = [
+                'number' => $this->ticketNumber($row['ID'] ?? ''),
+                'parent' => $this->ticketNumber($row['Parent issue'] ?? ''),
+                'raw_description' => $rawDescription,
+                'attributes' => [
+                    'title' => $title !== '' ? $title : 'Zonder titel',
+                    'description' => trim($rawDescription) !== '' ? $this->descriptionToHtml($rawDescription) : null,
+                    'status' => self::STATUS_MAP[$row['Status'] ?? ''] ?? 'backlog',
+                    'priority' => self::PRIORITY_MAP[$row['Priority'] ?? ''] ?? 'none',
+                    'due_date' => $this->parseDate($row['Due Date'] ?? '')?->toDateString(),
+                    'created_at' => $createdAt,
+                    'updated_at' => $this->parseDate($row['Updated'] ?? '') ?? $createdAt,
+                ],
+            ];
         }
 
         fclose($handle);
 
-        return $rows;
+        return $byTeam;
     }
 
     /**
-     * @param  array<string, string>  $row
+     * Newest "Export ... .csv" file in the project root, if any.
      */
-    private function importTask(array $row, Project $project, int $position): Task
+    private function latestExport(): ?string
     {
-        $task = new Task([
-            'project_id' => $project->id,
-            'number' => $this->ticketNumber($row['ID']),
-            'title' => $row['Title'] !== '' ? $row['Title'] : 'Zonder titel',
-            'description' => $row['Description'] !== '' ? $row['Description'] : null,
-            'status' => $this->mapStatus($row['Status']),
-            'priority' => $this->mapPriority($row['Priority']),
-            'assignee_id' => $this->resolveUser($row['Assignee'], UserRole::Member)?->id,
-            'created_by' => $this->resolveUser($row['Creator'], UserRole::Member)?->id,
-            'due_date' => $this->parseDate($row['Due Date'] ?? ''),
-            'position' => $position,
-            'rank' => $position,
-        ]);
+        $files = glob(base_path('Export*.csv')) ?: [];
 
-        $createdAt = $this->parseDate($row['Created'] ?? '') ?? now();
-
-        $task->forceFill([
-            'created_at' => $createdAt,
-            'updated_at' => $this->parseDate($row['Updated'] ?? '') ?? $createdAt,
-        ])->save();
-
-        return $task;
+        return $files[0] ?? null;
     }
 
     /**
-     * Download every Linear-hosted attachment referenced in the description and
-     * link it to the task. Returns how many were stored.
+     * The Linear export stores descriptions as Markdown. The task detail renders
+     * the field as raw HTML, so convert it once on import — otherwise every
+     * newline collapses and the text runs together.
      */
-    private function importAttachments(Task $task, string $description, AttachmentService $attachments): int
+    private function descriptionToHtml(string $description): string
     {
-        preg_match_all('/(!?)\[([^\]]*)\]\((https:\/\/uploads\.linear\.app\/[^)\s]+)\)/', $description, $matches, PREG_SET_ORDER);
-
-        $stored = 0;
-
-        foreach ($matches as $match) {
-            $filename = $this->attachmentFilename($match[2], $match[3]);
-            $url = $match[3];
-
-            try {
-                $response = Http::timeout(30)->get($url);
-
-                if (! $response->successful()) {
-                    $this->warn("\n{$task->identifier()}: bijlage {$filename} overslaan (HTTP {$response->status()}).");
-
-                    continue;
-                }
-
-                $attachments->storeRaw(
-                    $response->body(),
-                    $filename,
-                    $response->header('Content-Type') ?: null,
-                    $task,
-                    $task->creator,
-                );
-
-                $stored++;
-            } catch (\Throwable $e) {
-                $this->warn("\n{$task->identifier()}: bijlage {$filename} mislukt ({$e->getMessage()}).");
-            }
-        }
-
-        return $stored;
+        return trim(Str::markdown($description));
     }
 
     private function attachmentFilename(string $label, string $url): string
@@ -273,66 +368,43 @@ class ImportLinearExport extends Command
     }
 
     /**
-     * Find or create a user for the given email, caching by email.
+     * "BLO-42" -> 42, empty/garbage -> null.
      */
-    private function resolveUser(?string $email, UserRole $role): ?User
-    {
-        $email = trim((string) $email);
-
-        if ($email === '') {
-            return null;
-        }
-
-        $key = Str::lower($email);
-
-        return $this->users[$key] ??= User::firstOrCreate(
-            ['email' => $email],
-            [
-                'workspace_id' => $this->workspace->id,
-                'name' => $this->nameFromEmail($email),
-                'password' => Hash::make($this->option('password')),
-                'role' => $role,
-            ],
-        );
-    }
-
-    private function nameFromEmail(string $email): string
-    {
-        $local = Str::before($email, '@');
-
-        return Str::of($local)->replace(['.', '_', '-'], ' ')->title()->toString();
-    }
-
     private function ticketNumber(string $id): ?int
     {
-        return preg_match('/(\d+)$/', $id, $m) ? (int) $m[1] : null;
-    }
-
-    private function mapStatus(string $status): TaskStatus
-    {
-        return match ($status) {
-            'Backlog' => TaskStatus::Backlog,
-            'Todo' => TaskStatus::Todo,
-            'In Progress' => TaskStatus::InProgress,
-            'Done' => TaskStatus::Done,
-            'Canceled' => TaskStatus::Canceled,
-            default => TaskStatus::Backlog,
-        };
-    }
-
-    private function mapPriority(string $priority): TaskPriority
-    {
-        return match ($priority) {
-            'Urgent' => TaskPriority::Urgent,
-            'High' => TaskPriority::High,
-            'Medium' => TaskPriority::Medium,
-            'Low' => TaskPriority::Low,
-            default => TaskPriority::None,
-        };
+        return preg_match('/(\d+)$/', trim($id), $matches) ? (int) $matches[1] : null;
     }
 
     /**
-     * Parse a Linear timestamp like "Wed Sep 25 2024 08:57:00 GMT+0000 (GMT+00:00)".
+     * A three-letter, uppercased key derived from the team name.
+     */
+    private function deriveKey(string $team): string
+    {
+        $alnum = preg_replace('/[^A-Za-z0-9]/', '', $team);
+
+        return Str::upper(Str::substr($alnum !== '' ? $alnum : 'PRJ', 0, 3));
+    }
+
+    /**
+     * The given key, suffixed with a number when it is already taken.
+     */
+    private function uniqueProjectKey(string $base): string
+    {
+        $base = $base !== '' ? $base : 'PRJ';
+        $key = $base;
+        $suffix = 1;
+
+        while (DB::table('projects')->where('key', $key)->exists()) {
+            $key = $base.$suffix;
+            $suffix++;
+        }
+
+        return $key;
+    }
+
+    /**
+     * Parse a Linear timestamp like
+     * "Tue Jul 08 2025 07:02:13 GMT+0000 (GMT+00:00)".
      */
     private function parseDate(string $value): ?Carbon
     {

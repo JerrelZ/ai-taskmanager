@@ -503,6 +503,7 @@ class Inbox extends Component
     public function assignableUsers(): Collection
     {
         return User::query()
+            ->inWorkspace(Auth::user()->workspace_id)
             ->whereIn('role', [UserRole::Admin->value, UserRole::Member->value])
             ->orderBy('name')
             ->get(['id', 'name']);

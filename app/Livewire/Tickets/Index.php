@@ -108,7 +108,7 @@ class Index extends Component
     #[Computed]
     public function users(): Collection
     {
-        return User::query()->orderBy('name')->get();
+        return User::query()->inWorkspace(Auth::user()->workspace_id)->orderBy('name')->get();
     }
 
     /**

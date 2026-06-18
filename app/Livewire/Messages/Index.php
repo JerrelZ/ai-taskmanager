@@ -6,6 +6,7 @@ use App\Enums\ConversationType;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Livewire\Concerns\ManagesChatAttachments;
+use App\Livewire\Concerns\ManagesChatInteractions;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
@@ -17,6 +18,7 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -27,10 +29,13 @@ use Livewire\WithFileUploads;
 class Index extends Component
 {
     use ManagesChatAttachments;
+    use ManagesChatInteractions;
     use WithFileUploads;
 
     #[Url]
     public ?int $conversationId = null;
+
+    public string $search = '';
 
     public string $body = '';
 
@@ -62,12 +67,28 @@ class Index extends Component
     #[Computed]
     public function conversations(): Collection
     {
-        return Conversation::query()
+        $conversations = Conversation::query()
             ->visibleTo(Auth::user())
             ->with(['users', 'project', 'latestMessage.user'])
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
             ->get();
+
+        $term = trim($this->search);
+
+        if ($term === '') {
+            return $conversations;
+        }
+
+        // Match on the conversation title (DM partner, group or project name) or
+        // the latest message body; titles are derived in PHP so we filter here.
+        $me = Auth::user();
+
+        return $conversations->filter(fn (Conversation $conversation) => Str::contains(
+            $conversation->titleFor($me).' '.($conversation->latestMessage?->body ?? ''),
+            $term,
+            ignoreCase: true,
+        ))->values();
     }
 
     #[Computed]
@@ -92,7 +113,7 @@ class Index extends Component
     #[Computed]
     public function thread(): Collection
     {
-        return $this->activeConversation?->messages()->with(['user', 'attachments'])->get() ?? collect();
+        return $this->activeConversation?->messages()->with(['user', 'attachments', 'reactions', 'replyTo.user'])->get() ?? collect();
     }
 
     /**
@@ -104,6 +125,7 @@ class Index extends Component
     public function people(): Collection
     {
         return User::query()
+            ->inWorkspace(Auth::user()->workspace_id)
             ->whereKeyNot(Auth::id())
             ->orderBy('name')
             ->get();
@@ -169,6 +191,17 @@ class Index extends Component
         $conversation->markReadFor(Auth::user());
 
         unset($this->conversations, $this->activeConversation, $this->messages, $this->activeMuted);
+
+        $this->dispatchUnreadCount();
+    }
+
+    /**
+     * Push the fresh unread total to the browser so the document-title badge
+     * (e.g. "(3) Berichten") stays current without a full page reload.
+     */
+    private function dispatchUnreadCount(): void
+    {
+        $this->dispatch('unread-messages-changed', count: Auth::user()->unreadMessagesCount());
     }
 
     /**
@@ -228,6 +261,8 @@ class Index extends Component
 
             unset($this->conversations);
         }
+
+        $this->dispatchUnreadCount();
     }
 
     public function send(AttachmentService $attachments): void
@@ -239,15 +274,22 @@ class Index extends Component
             return;
         }
 
+        if ($this->handleSlashCommand($conversation)) {
+            unset($this->conversations, $this->messages);
+            $this->dispatch('message-sent');
+
+            return;
+        }
+
         $this->validate($this->chatAttachmentRules());
 
-        $message = $conversation->postMessage(Auth::user(), $body);
+        $message = $conversation->postMessage(Auth::user(), $body, $this->replyingToId);
 
         $this->storeChatAttachments($attachments, $message);
 
         $conversation->markReadFor(Auth::user());
 
-        $this->reset('body', 'newChatAttachments');
+        $this->reset('body', 'newChatAttachments', 'replyingToId');
 
         unset($this->conversations, $this->messages);
 

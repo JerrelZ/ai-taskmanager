@@ -76,6 +76,33 @@
     display: none !important;
 }
 
+/* Rich-text/Markdown bodies render inside `.prose`, but this project doesn't
+   ship the Typography plugin, so Preflight strips all spacing. Restore the
+   essentials: paragraph rhythm, list indentation, links and images. */
+.prose > :not(:last-child) {
+    @apply mb-3;
+}
+
+.prose ul {
+    @apply list-disc ps-5;
+}
+
+.prose ol {
+    @apply list-decimal ps-5;
+}
+
+.prose li:not(:last-child) {
+    @apply mb-1;
+}
+
+.prose a {
+    @apply text-accent underline;
+}
+
+.prose img {
+    @apply my-3 max-w-full rounded-lg;
+}
+
 /* Mentions/links inside an own (brand-coloured) chat bubble need light contrast. */
 .prose-mentions-light a {
     @apply text-white underline;

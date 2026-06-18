@@ -48,6 +48,19 @@ class UserFactory extends Factory
     }
 
     /**
+     * Keep the membership pivot in sync with the active workspace, so factory-
+     * built users show up in their workspace's member lists.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            if ($user->workspace_id !== null) {
+                $user->workspaces()->syncWithoutDetaching([$user->workspace_id]);
+            }
+        });
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

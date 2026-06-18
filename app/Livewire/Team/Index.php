@@ -39,7 +39,7 @@ class Index extends Component
     public function users(): Collection
     {
         return User::query()
-            ->where('workspace_id', Auth::user()->workspace_id)
+            ->inWorkspace(Auth::user()->workspace_id)
             ->with('client')
             ->orderBy('name')
             ->get();

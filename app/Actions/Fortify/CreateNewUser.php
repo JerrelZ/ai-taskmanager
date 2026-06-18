@@ -33,13 +33,17 @@ class CreateNewUser implements CreatesNewUsers
                 'name' => $input['name']."'s werkruimte",
             ]);
 
-            return User::create([
+            $user = User::create([
                 'workspace_id' => $workspace->id,
                 'name' => $input['name'],
                 'email' => $input['email'],
                 'password' => $input['password'],
                 'role' => UserRole::Admin,
             ]);
+
+            $user->workspaces()->attach($workspace);
+
+            return $user;
         });
     }
 }

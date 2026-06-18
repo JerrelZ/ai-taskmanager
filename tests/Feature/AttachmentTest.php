@@ -169,6 +169,16 @@ it('shares a file in a chat message', function () {
     expect(Attachment::count())->toBe(1);
 });
 
+it('renders the drag-and-drop dropzone for an open conversation', function () {
+    $conversation = Conversation::factory()->create();
+    $conversation->users()->sync([$this->user->id]);
+
+    Livewire::test(MessagesIndex::class)
+        ->call('openConversation', $conversation->id)
+        ->assertSeeHtml('chatDropzone()')
+        ->assertSee('Sleep bestanden hierheen om te versturen');
+});
+
 it('removes a pending attachment from the tray before sending', function () {
     $conversation = Conversation::factory()->create();
     $conversation->users()->sync([$this->user->id]);

@@ -8,8 +8,10 @@ use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -102,11 +104,60 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * The user's *active* workspace — the one all data is currently scoped to.
+     *
      * @return BelongsTo<Workspace, $this>
      */
     public function workspace(): BelongsTo
     {
         return $this->belongsTo(Workspace::class);
+    }
+
+    /**
+     * Every workspace the user belongs to and may switch into.
+     *
+     * @return BelongsToMany<Workspace, $this>
+     */
+    public function workspaces(): BelongsToMany
+    {
+        return $this->belongsToMany(Workspace::class, 'workspace_user')->withTimestamps();
+    }
+
+    /**
+     * Whether the user is a member of the given workspace.
+     */
+    public function belongsToWorkspace(Workspace|int $workspace): bool
+    {
+        $workspaceId = $workspace instanceof Workspace ? $workspace->id : $workspace;
+
+        return $this->workspaces()->whereKey($workspaceId)->exists();
+    }
+
+    /**
+     * Make the given workspace the active one. No-op (returns false) when the
+     * user is not a member, so a stale or forged id can never escape the tenant.
+     */
+    public function switchWorkspace(Workspace|int $workspace): bool
+    {
+        $workspaceId = $workspace instanceof Workspace ? $workspace->id : $workspace;
+
+        if (! $this->belongsToWorkspace($workspaceId)) {
+            return false;
+        }
+
+        $this->update(['workspace_id' => $workspaceId]);
+
+        return true;
+    }
+
+    /**
+     * Limit users to the members of the given workspace.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeInWorkspace(Builder $query, int $workspaceId): void
+    {
+        $query->whereHas('workspaces', fn (Builder $workspaces) => $workspaces->whereKey($workspaceId));
     }
 
     /**

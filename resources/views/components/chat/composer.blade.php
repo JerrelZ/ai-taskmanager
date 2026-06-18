@@ -3,13 +3,27 @@
     'placeholder' => null,
     'attachments' => true,
     'pending' => [],
+    'draftKey' => null,
+    'replyTo' => null,
 ])
 
 <div
+    @if ($draftKey) wire:key="composer-{{ $draftKey }}" @endif
     class="border-t border-zinc-200 bg-zinc-100 px-3 py-3 lg:px-4 dark:border-zinc-700 dark:bg-zinc-900"
-    x-data="chatComposer(@js(collect($mentions)->values()))"
+    x-data="chatComposer(@js(collect($mentions)->values()), @js($draftKey))"
     x-on:message-sent.window="reset()"
+    x-on:reply-started.window="$refs.input?.focus()"
 >
+    @if ($replyTo)
+        {{-- Reply context: the message the next send will answer. --}}
+        <div class="mb-2 flex items-center gap-2 rounded-lg border-s-2 border-brand-400 bg-white px-3 py-1.5 dark:bg-zinc-800">
+            <div class="min-w-0 flex-1">
+                <div class="text-xs font-medium text-brand-600 dark:text-brand-400">{{ __('Antwoord aan :name', ['name' => $replyTo->user?->name ?? __('Onbekend')]) }}</div>
+                <div class="truncate text-xs text-zinc-500 dark:text-zinc-400">{{ \Illuminate\Support\Str::limit($replyTo->body, 80) ?: __('Bijlage') }}</div>
+            </div>
+            <flux:button wire:click="cancelReply" size="xs" variant="subtle" icon="x-mark" :tooltip="__('Annuleer antwoord')" />
+        </div>
+    @endif
     @if ($attachments)
         {{-- Selected attachments preview tray --}}
         @if (count($pending) > 0)
@@ -102,6 +116,7 @@
                 wire:model="body"
                 x-on:input="onInput()"
                 x-on:keydown="onKeydown($event)"
+                x-on:paste="onPaste($event)"
                 rows="1"
                 placeholder="{{ $placeholder ?? __('Schrijf een bericht...') }}"
                 class="max-h-40 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-base text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-0 dark:text-zinc-100"
@@ -111,6 +126,16 @@
             <div x-show="open" x-cloak class="absolute bottom-full start-0 z-20 mb-2 max-h-48 w-64 overflow-y-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
                 <template x-for="(name, i) in matches" :key="name">
                     <button type="button" x-on:mousedown.prevent="choose(name)" :class="i === active ? 'bg-brand-50 dark:bg-brand-950/40' : ''" class="block w-full px-3 py-1.5 text-start text-sm text-zinc-700 dark:text-zinc-200">@<span x-text="name"></span></button>
+                </template>
+            </div>
+
+            {{-- Slash-command autocomplete --}}
+            <div x-show="cmdOpen" x-cloak class="absolute bottom-full start-0 z-20 mb-2 w-72 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+                <template x-for="(command, i) in cmdMatches" :key="command.name">
+                    <button type="button" x-on:mousedown.prevent="chooseCommand(command.name)" :class="i === cmdActive ? 'bg-brand-50 dark:bg-brand-950/40' : ''" class="flex w-full flex-col px-3 py-1.5 text-start">
+                        <span class="text-sm font-medium text-zinc-700 dark:text-zinc-200">/<span x-text="command.name"></span></span>
+                        <span class="text-xs text-zinc-400" x-text="command.hint"></span>
+                    </button>
                 </template>
             </div>
         </div>

@@ -32,6 +32,10 @@
             @endif
         </div>
 
+        <div class="border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
+            <flux:input wire:model.live.debounce.300ms="search" size="sm" icon="magnifying-glass" :placeholder="__('Zoek gesprekken')" clearable />
+        </div>
+
         <div class="flex-1 overflow-y-auto">
             @forelse ($this->conversations as $conversation)
                 @php
@@ -67,19 +71,38 @@
                     </div>
                 </button>
             @empty
-                <div class="p-6 text-center text-sm text-zinc-400">{{ __('Nog geen gesprekken.') }}</div>
+                <div class="p-6 text-center text-sm text-zinc-400">{{ filled($search) ? __('Geen gesprekken gevonden.') : __('Nog geen gesprekken.') }}</div>
             @endforelse
         </div>
     </div>
 
     {{-- Active thread --}}
-    <div @class([
-        'min-w-0 flex-1 flex-col',
-        'hidden lg:flex' => $this->activeConversation === null,
-        'flex' => $this->activeConversation !== null,
-    ])>
+    <div
+        x-data="chatDropzone()"
+        x-on:dragenter.prevent="onDragenter($event)"
+        x-on:dragover.prevent
+        x-on:dragleave.prevent="onDragleave($event)"
+        x-on:drop.prevent="onDrop($event)"
+        @class([
+            'relative min-w-0 flex-1 flex-col',
+            'hidden lg:flex' => $this->activeConversation === null,
+            'flex' => $this->activeConversation !== null,
+        ])
+    >
         @if ($this->activeConversation)
             @php $conversation = $this->activeConversation; @endphp
+
+            {{-- Drag-and-drop overlay --}}
+            <div
+                x-show="dragging"
+                x-cloak
+                x-transition.opacity
+                class="pointer-events-none absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 border-2 border-dashed border-brand-400 bg-brand-50/90 text-brand-600 backdrop-blur-sm dark:border-brand-500 dark:bg-brand-950/80 dark:text-brand-300"
+            >
+                <flux:icon name="paper-clip" class="size-10" />
+                <span class="text-base font-medium">{{ __('Sleep bestanden hierheen om te versturen') }}</span>
+            </div>
+
             <div class="flex items-center gap-3 border-b border-zinc-200 px-4 py-4 lg:px-6 dark:border-zinc-700">
                 <flux:button wire:click="$set('conversationId', null)" variant="subtle" size="sm" icon="arrow-left" class="lg:hidden" />
                 <flux:heading size="lg" class="min-w-0 flex-1 truncate">{{ $conversation->titleFor($me) }}</flux:heading>
@@ -100,9 +123,12 @@
                 :me="$me"
                 :show-sender-names="$conversation->type !== \App\Enums\ConversationType::Dm"
                 :can-draft-ticket="true"
+                :can-reply="true"
+                :can-react="true"
+                :conversation="$conversation"
             />
 
-            <x-chat.composer :mentions="$this->people->pluck('name')" :pending="$newChatAttachments" />
+            <x-chat.composer :mentions="$this->people->pluck('name')" :pending="$newChatAttachments" :draft-key="'chat-conv-'.$conversation->id" :reply-to="$this->replyingToMessage()" />
         @else
             <div class="flex h-full flex-col items-center justify-center gap-2 text-center text-zinc-400">
                 <flux:icon name="chat-bubble-left-right" class="size-12 text-zinc-300 dark:text-zinc-600" />

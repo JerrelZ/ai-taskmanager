@@ -87,17 +87,56 @@ function insertMention(el, name) {
     el.focus();
 }
 
+/**
+ * Reflect the unread message count in the document title — e.g. "(3) Berichten"
+ * — so it's visible from another browser tab. The count is server-rendered into
+ * a meta tag (fresh on every Livewire navigation) and can also be pushed live by
+ * the messages component via an `unread-messages-changed` event.
+ */
+function unreadMessageCount() {
+    const meta = document.querySelector('meta[name="unread-messages"]');
+
+    return meta ? parseInt(meta.content, 10) || 0 : 0;
+}
+
+function applyUnreadTitleBadge() {
+    const count = unreadMessageCount();
+    const base = document.title.replace(/^\(\d+\)\s*/, '');
+
+    document.title = count > 0 ? `(${count}) ${base}` : base;
+}
+
+document.addEventListener('DOMContentLoaded', applyUnreadTitleBadge);
+document.addEventListener('livewire:navigated', applyUnreadTitleBadge);
+window.addEventListener('unread-messages-changed', (event) => {
+    const meta = document.querySelector('meta[name="unread-messages"]');
+
+    if (meta && typeof event.detail?.count === 'number') {
+        meta.content = String(event.detail.count);
+    }
+
+    applyUnreadTitleBadge();
+});
+
 document.addEventListener('alpine:init', () => {
     /**
      * WhatsApp-style chat composer: auto-growing textarea, Enter-to-send on
      * devices with a real pointer (Shift+Enter for a newline), an emoji picker
      * and inline @mention autocomplete against the conversation members.
      */
-    window.Alpine.data('chatComposer', (names) => ({
+    window.Alpine.data('chatComposer', (names, draftKey = null) => ({
         names,
+        draftKey,
         open: false,
         matches: [],
         active: 0,
+        cmdOpen: false,
+        cmdMatches: [],
+        cmdActive: 0,
+        commands: [
+            { name: 'ticket', hint: 'Maak een ticket van de tekst erna' },
+            { name: 'task', hint: 'Alias voor /ticket' },
+        ],
         emojiOpen: false,
         activeCategory: 0,
         emojiCategories: EMOJI_CATEGORIES,
@@ -107,12 +146,93 @@ document.addEventListener('alpine:init', () => {
         },
 
         init() {
+            this.loadDraft();
             this.autosize();
         },
 
         onInput() {
             this.autosize();
             this.detectMention();
+            this.detectCommand();
+            this.saveDraft();
+        },
+
+        // Suggest slash commands while the message is just "/word" at the start.
+        detectCommand() {
+            const value = this.input?.value ?? '';
+            const match = value.match(/^\/(\w*)$/);
+
+            if (!match) {
+                this.cmdOpen = false;
+
+                return;
+            }
+
+            const query = match[1].toLowerCase();
+
+            this.cmdMatches = this.commands.filter((command) => command.name.startsWith(query));
+            this.cmdActive = 0;
+            this.cmdOpen = this.cmdMatches.length > 0;
+        },
+
+        chooseCommand(name) {
+            const el = this.input;
+
+            if (!el) {
+                return;
+            }
+
+            el.value = `/${name} `;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.focus();
+            this.cmdOpen = false;
+            this.autosize();
+        },
+
+        // Per-conversation draft persistence: a half-typed message survives
+        // switching conversations or a page reload, and clears once sent.
+        loadDraft() {
+            const el = this.input;
+
+            if (!this.draftKey || !el) {
+                return;
+            }
+
+            el.value = localStorage.getItem(this.draftKey) ?? '';
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+        },
+
+        saveDraft() {
+            if (!this.draftKey) {
+                return;
+            }
+
+            const value = this.input?.value ?? '';
+
+            if (value === '') {
+                localStorage.removeItem(this.draftKey);
+            } else {
+                localStorage.setItem(this.draftKey, value);
+            }
+        },
+
+        clearDraft() {
+            if (this.draftKey) {
+                localStorage.removeItem(this.draftKey);
+            }
+        },
+
+        // Paste an image/screenshot straight into the composer: hand any
+        // clipboard files to the same upload the paper-clip and drag-drop use.
+        onPaste(event) {
+            const files = Array.from(event.clipboardData?.files ?? []);
+
+            if (files.length === 0) {
+                return;
+            }
+
+            event.preventDefault();
+            this.$wire.$uploadMultiple('newChatAttachments', files);
         },
 
         autosize() {
@@ -132,6 +252,28 @@ document.addEventListener('alpine:init', () => {
         },
 
         onKeydown(event) {
+            if (this.cmdOpen) {
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    this.cmdActive = (this.cmdActive + 1) % this.cmdMatches.length;
+                    return;
+                }
+                if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    this.cmdActive = (this.cmdActive - 1 + this.cmdMatches.length) % this.cmdMatches.length;
+                    return;
+                }
+                if (event.key === 'Enter' || event.key === 'Tab') {
+                    event.preventDefault();
+                    this.chooseCommand(this.cmdMatches[this.cmdActive].name);
+                    return;
+                }
+                if (event.key === 'Escape') {
+                    this.cmdOpen = false;
+                    return;
+                }
+            }
+
             if (this.open) {
                 if (event.key === 'ArrowDown') {
                     event.preventDefault();
@@ -196,10 +338,13 @@ document.addEventListener('alpine:init', () => {
             this.autosize();
         },
 
-        // Called after a message is sent: clear the grown height and refocus.
+        // Called after a message is sent: drop the saved draft, clear the grown
+        // height and refocus.
         reset() {
             this.open = false;
+            this.cmdOpen = false;
             this.emojiOpen = false;
+            this.clearDraft();
             this.$nextTick(() => {
                 this.autosize();
                 this.input?.focus();
@@ -372,11 +517,62 @@ document.addEventListener('alpine:init', () => {
     }));
 
     /**
+     * Drag-and-drop attachments onto the open chat. Reacts to file drags only
+     * (clicks fall through to messages and buttons untouched) and hands the
+     * dropped files to the composer's `newChatAttachments` upload so they land
+     * in the same pending tray as the paper-clip picker. A depth counter keeps
+     * the overlay stable while dragging across nested child elements.
+     */
+    window.Alpine.data('chatDropzone', () => ({
+        dragging: false,
+        depth: 0,
+
+        onDragenter(event) {
+            if (!this.hasFiles(event) || this.$wire.conversationId === null) {
+                return;
+            }
+
+            this.depth++;
+            this.dragging = true;
+        },
+
+        onDragleave() {
+            this.depth = Math.max(0, this.depth - 1);
+
+            if (this.depth === 0) {
+                this.dragging = false;
+            }
+        },
+
+        onDrop(event) {
+            this.depth = 0;
+            this.dragging = false;
+
+            if (this.$wire.conversationId === null) {
+                return;
+            }
+
+            const files = Array.from(event.dataTransfer?.files ?? []);
+
+            if (files.length === 0) {
+                return;
+            }
+
+            this.$wire.$uploadMultiple('newChatAttachments', files);
+        },
+
+        hasFiles(event) {
+            return Array.from(event.dataTransfer?.types ?? []).includes('Files');
+        },
+    }));
+
+    /**
      * Message thread: stays pinned to the newest message, but leaves the
      * scroll position alone while the user is reading older history.
      */
     window.Alpine.data('chatThread', () => ({
         pinned: true,
+        hasNew: false,
 
         init() {
             this.scrollToBottom();
@@ -384,6 +580,10 @@ document.addEventListener('alpine:init', () => {
             this.observer = new MutationObserver(() => {
                 if (this.pinned) {
                     this.scrollToBottom();
+                } else {
+                    // New content arrived while the user is reading history;
+                    // flag it so the jump-to-bottom button can announce it.
+                    this.hasNew = true;
                 }
             });
             this.observer.observe(this.$el, { childList: true, subtree: true });
@@ -391,6 +591,10 @@ document.addEventListener('alpine:init', () => {
             this.$el.addEventListener('scroll', () => {
                 const distance = this.$el.scrollHeight - this.$el.scrollTop - this.$el.clientHeight;
                 this.pinned = distance < 120;
+
+                if (this.pinned) {
+                    this.hasNew = false;
+                }
             });
         },
 

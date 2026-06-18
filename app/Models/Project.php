@@ -191,7 +191,7 @@ class Project extends Model
     public function accessibleUsers(): Builder
     {
         return User::query()
-            ->where('workspace_id', $this->workspace_id)
+            ->inWorkspace($this->workspace_id)
             ->where(function (Builder $query) {
                 $query->whereIn('role', [UserRole::Admin->value, UserRole::Member->value]);
 

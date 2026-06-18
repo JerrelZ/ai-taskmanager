@@ -160,10 +160,16 @@ class Conversation extends Model
         ]);
     }
 
-    public function postMessage(User $user, string $body): Message
+    public function postMessage(User $user, string $body, ?int $replyToId = null): Message
     {
+        // Only allow replying to a message that lives in this same conversation.
+        $validReplyToId = $replyToId !== null
+            ? $this->messages()->whereKey($replyToId)->value('id')
+            : null;
+
         $message = $this->messages()->create([
             'user_id' => $user->id,
+            'reply_to_id' => $validReplyToId,
             'body' => $body,
         ]);
 

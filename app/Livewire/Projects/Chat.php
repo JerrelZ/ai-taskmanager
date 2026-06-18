@@ -3,6 +3,7 @@
 namespace App\Livewire\Projects;
 
 use App\Livewire\Concerns\ManagesChatAttachments;
+use App\Livewire\Concerns\ManagesChatInteractions;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
@@ -17,6 +18,7 @@ use Livewire\WithFileUploads;
 class Chat extends Component
 {
     use ManagesChatAttachments;
+    use ManagesChatInteractions;
     use WithFileUploads;
 
     public Project $project;
@@ -52,7 +54,7 @@ class Chat extends Component
     #[Computed]
     public function thread(): Collection
     {
-        return $this->conversation->messages()->with(['user', 'attachments'])->get();
+        return $this->conversation->messages()->with(['user', 'attachments', 'reactions', 'replyTo.user'])->get();
     }
 
     /**
@@ -64,6 +66,7 @@ class Chat extends Component
     public function people(): Collection
     {
         return User::query()
+            ->inWorkspace($this->project->workspace_id)
             ->whereKeyNot(Auth::id())
             ->orderBy('name')
             ->get();
@@ -77,13 +80,20 @@ class Chat extends Component
             return;
         }
 
+        if ($this->handleSlashCommand($this->conversation)) {
+            unset($this->thread);
+            $this->dispatch('message-sent');
+
+            return;
+        }
+
         $this->validate($this->chatAttachmentRules());
 
-        $message = $this->conversation->postMessage(Auth::user(), $body);
+        $message = $this->conversation->postMessage(Auth::user(), $body, $this->replyingToId);
 
         $this->storeChatAttachments($attachments, $message);
 
-        $this->reset('body', 'newChatAttachments');
+        $this->reset('body', 'newChatAttachments', 'replyingToId');
 
         unset($this->thread);
 

@@ -45,6 +45,10 @@ class Board extends Component
     #[Url]
     public string $search = '';
 
+    /** Deep-link target: a task to open on load (e.g. from a chat #ref chip). */
+    #[Url]
+    public ?int $openTask = null;
+
     /** @var array<string, string> Quick-create title per status column. */
     public array $newTaskTitle = [];
 
@@ -72,6 +76,11 @@ class Board extends Component
         abort_unless($project->isVisibleTo(Auth::user()), 403);
 
         $this->project = $project;
+
+        // Open a deep-linked task once the detail panel is listening.
+        if ($this->openTask !== null && $project->tasks()->whereKey($this->openTask)->exists()) {
+            $this->dispatch('open-task', taskId: $this->openTask);
+        }
     }
 
     public function canManageProject(): bool
@@ -196,7 +205,7 @@ class Board extends Component
     #[Computed]
     public function users(): Collection
     {
-        return User::query()->orderBy('name')->get();
+        return User::query()->inWorkspace($this->project->workspace_id)->orderBy('name')->get();
     }
 
     /**

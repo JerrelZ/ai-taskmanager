@@ -36,26 +36,51 @@ return new class extends Migration
     }
 
     /**
-     * Existing installs predate workspaces: fold all current data into a single
-     * default workspace so nothing becomes invisible. Fresh databases (e.g. the
-     * test suite) have no rows and therefore get no workspace.
+     * Existing installs predate workspaces. Give every user their own workspace
+     * (matching self-registration, which starts a fresh tenant per signup) so
+     * separate accounts do not end up sharing one another's data. Legacy clients
+     * and projects carry no owner signal, so they fold into the oldest user's
+     * workspace to stay visible. Fresh databases (e.g. the test suite) have no
+     * rows and therefore get no workspace.
      */
     private function backfillExistingData(): void
     {
-        $hasData = collect(self::TABLES)->contains(fn (string $table) => DB::table($table)->exists());
+        $users = DB::table('users')->whereNull('workspace_id')->orderBy('id')->get(['id', 'name']);
 
-        if (! $hasData) {
-            return;
+        $oldestWorkspaceId = null;
+
+        foreach ($users as $user) {
+            $name = trim((string) $user->name);
+
+            $workspaceId = DB::table('workspaces')->insertGetId([
+                'name' => $name !== '' ? "{$name}'s werkruimte" : 'Mijn werkruimte',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::table('users')->where('id', $user->id)->update(['workspace_id' => $workspaceId]);
+
+            $oldestWorkspaceId ??= $workspaceId;
         }
 
-        $workspaceId = DB::table('workspaces')->insertGetId([
-            'name' => 'Mijn werkruimte',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $orphanWorkspaceId = $oldestWorkspaceId ?? DB::table('workspaces')->min('id');
 
-        foreach (self::TABLES as $table) {
-            DB::table($table)->whereNull('workspace_id')->update(['workspace_id' => $workspaceId]);
+        if ($orphanWorkspaceId === null) {
+            $hasOrphans = DB::table('clients')->whereNull('workspace_id')->exists()
+                || DB::table('projects')->whereNull('workspace_id')->exists();
+
+            if ($hasOrphans) {
+                $orphanWorkspaceId = DB::table('workspaces')->insertGetId([
+                    'name' => 'Mijn werkruimte',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+
+        if ($orphanWorkspaceId !== null) {
+            DB::table('clients')->whereNull('workspace_id')->update(['workspace_id' => $orphanWorkspaceId]);
+            DB::table('projects')->whereNull('workspace_id')->update(['workspace_id' => $orphanWorkspaceId]);
         }
     }
 
