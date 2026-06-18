@@ -261,6 +261,26 @@ class Board extends Component
         unset($this->tasks, $this->columns);
     }
 
+    /**
+     * Move a task to another column from the card status picker (mobile-friendly alternative to dragging).
+     */
+    public function setStatus(int $id, string $status): void
+    {
+        $task = $this->project->rootTasks()->findOrFail($id);
+        $newStatus = TaskStatus::from($status);
+
+        if ($task->status === $newStatus) {
+            return;
+        }
+
+        $maxPosition = (int) $this->project->rootTasks()->where('status', $newStatus->value)->max('position');
+
+        TaskActivity::log($task, 'status', ['from' => $task->status->label(), 'to' => $newStatus->label()]);
+        $task->update(['status' => $newStatus, 'position' => $maxPosition + 1]);
+
+        unset($this->tasks, $this->columns);
+    }
+
     public function createTask(string $status): void
     {
         $title = trim($this->newTaskTitle[$status] ?? '');

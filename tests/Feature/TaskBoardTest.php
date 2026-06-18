@@ -51,6 +51,30 @@ test('moving a task changes its status and orders positions', function () {
     expect($ordered)->toBe([$b->id, $a->id, $c->id]);
 });
 
+test('setting a status moves a task to the end of the target column', function () {
+    $a = Task::factory()->for($this->project)->status(TaskStatus::Backlog)->create(['position' => 0]);
+    $b = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['position' => 0]);
+
+    Livewire::test(Board::class, ['project' => $this->project])
+        ->call('setStatus', $a->id, 'todo');
+
+    expect($a->refresh()->status)->toBe(TaskStatus::Todo);
+
+    $ordered = Task::where('status', 'todo')->orderBy('position')->pluck('id')->all();
+    expect($ordered)->toBe([$b->id, $a->id]);
+});
+
+test('setting the same status leaves the task untouched', function () {
+    $a = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['position' => 3]);
+
+    Livewire::test(Board::class, ['project' => $this->project])
+        ->call('setStatus', $a->id, 'todo');
+
+    $a->refresh();
+    expect($a->status)->toBe(TaskStatus::Todo);
+    expect($a->position)->toBe(3);
+});
+
 test('reordering within a column persists positions', function () {
     $a = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['position' => 0]);
     $b = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['position' => 1]);

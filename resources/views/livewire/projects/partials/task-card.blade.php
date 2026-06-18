@@ -10,11 +10,31 @@
 >
     <div class="mb-1 flex items-center justify-between gap-2">
         <span class="font-mono text-[0.7rem] tracking-tight text-zinc-400">{{ $task->identifier() }}</span>
-        <button type="button" wire:sort:handle x-on:click.stop
-            class="-me-1 flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-zinc-300 transition hover:text-zinc-500 active:cursor-grabbing lg:opacity-0 lg:group-hover:opacity-100 dark:text-zinc-600 dark:hover:text-zinc-300"
-            aria-label="{{ __('Versleep kaart') }}">
-            <flux:icon name="bars-3" variant="micro" />
-        </button>
+        <div class="flex items-center gap-1">
+            {{-- Mobile: tap the status pill to move the card to another column. --}}
+            <flux:dropdown wire:sort:ignore position="bottom" align="end" class="lg:hidden">
+                <flux:badge as="button" type="button" x-on:click.stop :color="$task->status->color()" size="sm" rounded class="cursor-pointer">
+                    {{ $task->status->label() }}
+                </flux:badge>
+                <flux:menu>
+                    @foreach (\App\Enums\TaskStatus::cases() as $columnStatus)
+                        <flux:menu.item
+                            x-on:click.stop
+                            wire:click="setStatus({{ $task->id }}, '{{ $columnStatus->value }}')"
+                            :icon="$task->status === $columnStatus ? 'check' : null"
+                        >
+                            {{ $columnStatus->label() }}
+                        </flux:menu.item>
+                    @endforeach
+                </flux:menu>
+            </flux:dropdown>
+            {{-- Desktop: drag handle (sideways dragging doesn't work well on touch). --}}
+            <button type="button" wire:sort:handle x-on:click.stop
+                class="-me-1 hidden size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-zinc-300 transition hover:text-zinc-500 active:cursor-grabbing lg:flex lg:opacity-0 lg:group-hover:opacity-100 dark:text-zinc-600 dark:hover:text-zinc-300"
+                aria-label="{{ __('Versleep kaart') }}">
+                <flux:icon name="bars-3" variant="micro" />
+            </button>
+        </div>
     </div>
     <div class="flex items-start justify-between gap-2">
         <p @class([
