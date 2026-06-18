@@ -255,15 +255,14 @@ class Index extends Component
     }
 
     /**
-     * Open the "new conversation" modal, pre-selecting the contact when only
-     * one is available so a chat can be started without an impossible choice.
+     * Open the "new conversation" modal, pre-selecting the first contact so a
+     * chat can be started in one tap; the user can still pick someone else.
      */
     public function openNewDm(): void
     {
         abort_unless(Auth::user()->isTeam(), 403);
 
-        $people = $this->people;
-        $this->newDmUserId = $people->count() === 1 ? $people->first()->id : null;
+        $this->newDmUserId = $this->people->first()?->id;
 
         Flux::modal('new-dm')->show();
     }

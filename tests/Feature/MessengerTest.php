@@ -35,12 +35,13 @@ test('a conversation can be started straight from the pre-selected contact', fun
     expect($conversation->users->pluck('id')->all())->toEqualCanonicalizing([$this->user->id, $only->id]);
 });
 
-test('opening a new conversation pre-selects nobody when several contacts exist', function () {
-    User::factory()->count(2)->create();
+test('opening a new conversation pre-selects the first contact when several exist', function () {
+    $anna = User::factory()->create(['name' => 'Anna']);
+    User::factory()->create(['name' => 'Bob']);
 
     Livewire::test(Index::class)
         ->call('openNewDm')
-        ->assertSet('newDmUserId', null);
+        ->assertSet('newDmUserId', $anna->id);
 });
 
 test('the messenger lists conversations the user is a member of', function () {
