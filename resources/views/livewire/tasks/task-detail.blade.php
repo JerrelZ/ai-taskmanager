@@ -19,7 +19,9 @@
                 </div>
 
                 <div class="flex items-center gap-1">
-                    <flux:button wire:click="copyPrompt({{ $task->id }})" variant="subtle" size="sm" icon="clipboard-document">{{ __('Kopieer prompt') }}</flux:button>
+                    @if (auth()->user()?->canCopyPrompt())
+                        <flux:button wire:click="copyPrompt({{ $task->id }})" variant="subtle" size="sm" icon="clipboard-document">{{ __('Kopieer prompt') }}</flux:button>
+                    @endif
                     <flux:dropdown>
                         <flux:button variant="subtle" size="sm" icon="ellipsis-horizontal" inset="top bottom" />
                         <flux:menu>

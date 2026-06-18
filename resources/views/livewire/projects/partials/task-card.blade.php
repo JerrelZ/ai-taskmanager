@@ -21,11 +21,13 @@
             'text-sm font-medium text-zinc-800 dark:text-zinc-100',
             'line-through' => $task->status === \App\Enums\TaskStatus::Canceled,
         ])>{{ $task->title }}</p>
-        <div wire:sort:ignore class="opacity-0 transition group-hover:opacity-100">
-            <flux:tooltip :content="__('Kopieer als AI-prompt')">
-                <flux:button wire:click.stop="copyPrompt({{ $task->id }})" variant="subtle" size="xs" icon="clipboard-document" inset="top bottom" />
-            </flux:tooltip>
-        </div>
+        @if (auth()->user()?->canCopyPrompt())
+            <div wire:sort:ignore class="opacity-0 transition group-hover:opacity-100">
+                <flux:tooltip :content="__('Kopieer als AI-prompt')">
+                    <flux:button wire:click.stop="copyPrompt({{ $task->id }})" variant="subtle" size="xs" icon="clipboard-document" inset="top bottom" />
+                </flux:tooltip>
+            </div>
+        @endif
     </div>
 
     <div class="mt-3 flex items-center gap-3 text-zinc-400">

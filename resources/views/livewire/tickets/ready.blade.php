@@ -44,7 +44,9 @@
                         </span>
                     </button>
 
-                    <flux:button wire:click="copyPrompt({{ $task->id }})" size="sm" variant="primary" icon="clipboard-document">{{ __('Prompt kopiëren') }}</flux:button>
+                    @if (auth()->user()?->canCopyPrompt())
+                        <flux:button wire:click="copyPrompt({{ $task->id }})" size="sm" variant="primary" icon="clipboard-document">{{ __('Prompt kopiëren') }}</flux:button>
+                    @endif
                 </div>
             @empty
                 <div class="rounded-lg border border-dashed border-zinc-200 px-4 py-10 text-center dark:border-zinc-700">
@@ -80,7 +82,9 @@
                             <flux:tooltip :content="__('Opnieuw beoordelen')">
                                 <flux:button wire:click="reassess({{ $task->id }})" size="xs" variant="subtle" icon="arrow-path" />
                             </flux:tooltip>
-                            <flux:button wire:click="copyPrompt({{ $task->id }})" size="sm" variant="subtle" icon="clipboard-document">{{ __('Prompt') }}</flux:button>
+                            @if (auth()->user()?->canCopyPrompt())
+                                <flux:button wire:click="copyPrompt({{ $task->id }})" size="sm" variant="subtle" icon="clipboard-document">{{ __('Prompt') }}</flux:button>
+                            @endif
                         </div>
 
                         @if (! empty($task->ai_missing))

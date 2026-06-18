@@ -57,6 +57,8 @@ it('shows almost-ready tickets with their missing context', function () {
 });
 
 it('copies the resolved prompt to the clipboard', function () {
+    $this->actingAs(User::factory()->canCopyPrompt()->create());
+
     $project = Project::factory()->create(['repo_path' => '~/Herd/demo']);
     $task = Task::factory()->for($project)->create([
         'title' => 'Kopieerbaar ticket',

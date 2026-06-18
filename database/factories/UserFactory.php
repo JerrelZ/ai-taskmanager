@@ -31,6 +31,7 @@ class UserFactory extends Factory
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'role' => UserRole::Member,
+            'can_copy_prompt' => false,
             'client_id' => null,
             'messenger_notifications_enabled' => true,
             'messenger_notification_mode' => MessengerNotificationMode::Realtime,
@@ -60,6 +61,14 @@ class UserFactory extends Factory
     public function admin(): static
     {
         return $this->state(fn () => ['role' => UserRole::Admin]);
+    }
+
+    /**
+     * Indicate the user may copy AI prompts to the clipboard.
+     */
+    public function canCopyPrompt(): static
+    {
+        return $this->state(fn () => ['can_copy_prompt' => true]);
     }
 
     /**

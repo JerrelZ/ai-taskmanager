@@ -71,7 +71,9 @@
                         </button>
                     </div>
                     <div class="flex shrink-0 items-center gap-2">
-                        <flux:button wire:click="copyPrompt({{ $now->id }})" size="sm" variant="subtle" icon="clipboard-document">{{ __('Prompt') }}</flux:button>
+                        @if (auth()->user()?->canCopyPrompt())
+                            <flux:button wire:click="copyPrompt({{ $now->id }})" size="sm" variant="subtle" icon="clipboard-document">{{ __('Prompt') }}</flux:button>
+                        @endif
                         <flux:button wire:click="openTask({{ $now->id }})" size="sm" variant="primary">{{ __('Openen') }}</flux:button>
                     </div>
                 </div>

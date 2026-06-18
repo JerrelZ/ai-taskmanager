@@ -88,6 +88,8 @@ test('marking a ticket reviewed updates reviewed_at', function () {
 });
 
 test('copying a prompt dispatches the clipboard event', function () {
+    $this->actingAs(User::factory()->canCopyPrompt()->create());
+
     $task = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create();
 
     Livewire::test(Index::class)

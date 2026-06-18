@@ -81,8 +81,10 @@
                 <flux:button wire:click="markReviewed({{ $task->id }})" variant="subtle" size="xs" icon="check" inset="top bottom" />
             </flux:tooltip>
         @endif
-        <flux:tooltip :content="__('Kopieer als AI-prompt')">
-            <flux:button wire:click="copyPrompt({{ $task->id }})" variant="subtle" size="xs" icon="clipboard-document" inset="top bottom" />
-        </flux:tooltip>
+        @if (auth()->user()?->canCopyPrompt())
+            <flux:tooltip :content="__('Kopieer als AI-prompt')">
+                <flux:button wire:click="copyPrompt({{ $task->id }})" variant="subtle" size="xs" icon="clipboard-document" inset="top bottom" />
+            </flux:tooltip>
+        @endif
     </div>
 </div>

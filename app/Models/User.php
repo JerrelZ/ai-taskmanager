@@ -25,6 +25,7 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
  * @property string $name
  * @property string $email
  * @property UserRole $role
+ * @property bool $can_copy_prompt
  * @property int|null $client_id
  * @property Carbon|null $email_verified_at
  * @property string $password
@@ -57,6 +58,7 @@ class User extends Authenticatable implements PasskeyUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'can_copy_prompt' => 'boolean',
             'messenger_notifications_enabled' => 'boolean',
             'messenger_notification_mode' => MessengerNotificationMode::class,
             'messenger_digest_last_sent_at' => 'datetime',
@@ -122,6 +124,14 @@ class User extends Authenticatable implements PasskeyUser
     public function isClient(): bool
     {
         return $this->role === UserRole::Client;
+    }
+
+    /**
+     * Whether this user may copy a task's AI prompt to the clipboard.
+     */
+    public function canCopyPrompt(): bool
+    {
+        return (bool) $this->can_copy_prompt;
     }
 
     /**
