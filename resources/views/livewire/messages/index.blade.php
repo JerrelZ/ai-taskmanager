@@ -116,7 +116,7 @@
     <flux:modal name="new-dm" class="md:w-96">
         <form wire:submit="startDm" class="space-y-6">
             <flux:heading size="lg">{{ __('Nieuw gesprek') }}</flux:heading>
-            <flux:select wire:model="newDmUserId" :label="__('Met wie?')" placeholder="{{ __('Kies persoon') }}">
+            <flux:select wire:model.live="newDmUserId" :label="__('Met wie?')" placeholder="{{ __('Kies persoon') }}">
                 @foreach ($this->people as $person)
                     <flux:select.option :value="$person->id">{{ $person->name }} ({{ $person->email }})</flux:select.option>
                 @endforeach

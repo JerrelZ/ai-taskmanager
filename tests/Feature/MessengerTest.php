@@ -22,6 +22,19 @@ test('opening a new conversation pre-selects the only available contact', functi
         ->assertSet('newDmUserId', $only->id);
 });
 
+test('a conversation can be started straight from the pre-selected contact', function () {
+    $only = User::factory()->create();
+
+    Livewire::test(Index::class)
+        ->call('openNewDm')
+        ->assertSet('newDmUserId', $only->id)
+        ->call('startDm')
+        ->assertHasNoErrors();
+
+    $conversation = Conversation::query()->where('type', ConversationType::Dm->value)->sole();
+    expect($conversation->users->pluck('id')->all())->toEqualCanonicalizing([$this->user->id, $only->id]);
+});
+
 test('opening a new conversation pre-selects nobody when several contacts exist', function () {
     User::factory()->count(2)->create();
 
