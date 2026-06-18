@@ -23,9 +23,7 @@
                 <flux:dropdown>
                     <flux:button size="sm" variant="primary" icon="plus" />
                     <flux:menu>
-                        <flux:modal.trigger name="new-dm">
-                            <flux:menu.item icon="user">{{ __('Nieuw gesprek') }}</flux:menu.item>
-                        </flux:modal.trigger>
+                        <flux:menu.item icon="user" wire:click="openNewDm">{{ __('Nieuw gesprek') }}</flux:menu.item>
                         <flux:modal.trigger name="new-group">
                             <flux:menu.item icon="user-group">{{ __('Nieuwe groep') }}</flux:menu.item>
                         </flux:modal.trigger>

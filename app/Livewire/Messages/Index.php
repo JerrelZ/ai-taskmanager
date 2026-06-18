@@ -254,6 +254,20 @@ class Index extends Component
         $this->dispatch('message-sent');
     }
 
+    /**
+     * Open the "new conversation" modal, pre-selecting the contact when only
+     * one is available so a chat can be started without an impossible choice.
+     */
+    public function openNewDm(): void
+    {
+        abort_unless(Auth::user()->isTeam(), 403);
+
+        $people = $this->people;
+        $this->newDmUserId = $people->count() === 1 ? $people->first()->id : null;
+
+        Flux::modal('new-dm')->show();
+    }
+
     public function startDm(): void
     {
         abort_unless(Auth::user()->isTeam(), 403);

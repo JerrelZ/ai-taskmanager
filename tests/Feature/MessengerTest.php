@@ -14,6 +14,22 @@ beforeEach(function () {
     $this->actingAs($this->user);
 });
 
+test('opening a new conversation pre-selects the only available contact', function () {
+    $only = User::factory()->create();
+
+    Livewire::test(Index::class)
+        ->call('openNewDm')
+        ->assertSet('newDmUserId', $only->id);
+});
+
+test('opening a new conversation pre-selects nobody when several contacts exist', function () {
+    User::factory()->count(2)->create();
+
+    Livewire::test(Index::class)
+        ->call('openNewDm')
+        ->assertSet('newDmUserId', null);
+});
+
 test('the messenger lists conversations the user is a member of', function () {
     $group = Conversation::factory()->create(['name' => 'Algemeen']);
     $group->users()->sync([$this->user->id]);
