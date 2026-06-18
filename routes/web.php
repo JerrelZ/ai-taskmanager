@@ -11,9 +11,9 @@ Route::get('/', function (Request $request) {
     return redirect($isMobile ? '/messages' : '/tickets');
 })->name('home');
 
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::view('dashboard', 'dashboard')->name('dashboard');
-});
+// There is no standalone dashboard; the app opens on the tickets/messages
+// home. Kept as a named redirect so existing links resolve.
+Route::redirect('dashboard', '/')->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('attachments/{attachment}/download', [AttachmentController::class, 'download'])

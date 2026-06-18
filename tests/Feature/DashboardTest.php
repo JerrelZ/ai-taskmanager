@@ -2,15 +2,12 @@
 
 use App\Models\User;
 
-test('guests are redirected to the login page', function () {
-    $response = $this->get(route('dashboard'));
-    $response->assertRedirect(route('login'));
+test('the legacy dashboard route redirects to the home', function () {
+    $this->get(route('dashboard'))->assertRedirect('/');
 });
 
-test('authenticated users can visit the dashboard', function () {
-    $user = User::factory()->create();
-    $this->actingAs($user);
+test('authenticated users land on the tickets workspace from home', function () {
+    $this->actingAs(User::factory()->create());
 
-    $response = $this->get(route('dashboard'));
-    $response->assertOk();
+    $this->get('/')->assertRedirect('/tickets');
 });
