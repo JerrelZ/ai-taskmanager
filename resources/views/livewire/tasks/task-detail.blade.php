@@ -3,24 +3,24 @@
         @php $task = $this->task; @endphp
         <div class="flex h-[86vh] flex-col">
             {{-- Header bar --}}
-            <div class="flex items-center justify-between gap-2 border-b border-zinc-200 pb-3 pe-8 dark:border-zinc-700">
-                <div class="flex items-center gap-2 text-sm text-zinc-400">
+            <div class="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-200 pb-3 pe-8 dark:border-zinc-700">
+                <div class="flex min-w-0 items-center gap-2 text-sm text-zinc-400">
                     <a href="{{ route('projects.board', $task->project) }}" wire:navigate class="flex items-center gap-1.5 hover:text-zinc-600 dark:hover:text-zinc-300">
-                        <span class="size-2.5 rounded-full bg-{{ $task->project->color }}-500"></span>
-                        {{ $task->project->name }}
+                        <span class="size-2.5 shrink-0 rounded-full bg-{{ $task->project->color }}-500"></span>
+                        <span class="truncate">{{ $task->project->name }}</span>
                     </a>
-                    <span class="font-mono text-xs tracking-tight text-zinc-400">{{ $task->identifier() }}</span>
+                    <span class="shrink-0 font-mono text-xs tracking-tight text-zinc-400">{{ $task->identifier() }}</span>
                     @if ($task->isSubtask() && $task->parent)
-                        <flux:icon name="chevron-right" variant="micro" />
-                        <flux:link wire:click="open({{ $task->parent->id }})" class="cursor-pointer">
+                        <flux:icon name="chevron-right" variant="micro" class="shrink-0" />
+                        <flux:link wire:click="open({{ $task->parent->id }})" class="cursor-pointer truncate">
                             {{ \Illuminate\Support\Str::limit($task->parent->title, 40) }}
                         </flux:link>
                     @endif
                 </div>
 
-                <div class="flex items-center gap-1">
+                <div class="flex shrink-0 items-center gap-1">
                     @if (auth()->user()?->canCopyPrompt())
-                        <flux:button wire:click="copyPrompt({{ $task->id }})" variant="subtle" size="sm" icon="clipboard-document">{{ __('Kopieer prompt') }}</flux:button>
+                        <flux:button wire:click="copyPrompt({{ $task->id }})" variant="subtle" size="sm" icon="clipboard-document"><span class="hidden sm:inline">{{ __('Kopieer prompt') }}</span></flux:button>
                     @endif
                     <flux:dropdown>
                         <flux:button variant="subtle" size="sm" icon="ellipsis-horizontal" inset="top bottom" />
@@ -33,11 +33,126 @@
                 </div>
             </div>
 
+            {{-- Mobile: compact title + property bar, kept fixed above the scrollable body. --}}
+            @php
+                $statusEnum = \App\Enums\TaskStatus::from($status);
+                $priorityEnum = \App\Enums\TaskPriority::from($priority);
+                $assigneeName = $this->users->firstWhere('id', $assigneeId)?->name;
+            @endphp
+            <div class="shrink-0 space-y-2 border-b border-zinc-200 py-3 lg:hidden dark:border-zinc-700">
+                <flux:input wire:model.blur="title" wire:key="title-mobile-{{ $task->id }}" variant="filled" class="font-display !text-lg" placeholder="{{ __('Task titel') }}" />
+
+                <div class="flex flex-wrap items-center gap-1.5">
+                    {{-- Status --}}
+                    <flux:dropdown position="bottom" align="start">
+                        <flux:badge as="button" type="button" :color="$statusEnum->color()" size="sm" rounded icon:trailing="chevron-down" class="cursor-pointer">
+                            {{ $statusEnum->label() }}
+                        </flux:badge>
+                        <flux:menu>
+                            @foreach ($this->statuses() as $statusOption)
+                                <flux:menu.item wire:click="$set('status', '{{ $statusOption->value }}')" :icon="$status === $statusOption->value ? 'check' : null">
+                                    {{ $statusOption->label() }}
+                                </flux:menu.item>
+                            @endforeach
+                        </flux:menu>
+                    </flux:dropdown>
+
+                    {{-- Priority --}}
+                    <flux:dropdown position="bottom" align="start">
+                        <flux:badge as="button" type="button" :color="$priorityEnum->color()" size="sm" rounded :icon="$priorityEnum->icon()" icon:trailing="chevron-down" class="cursor-pointer">
+                            {{ $priorityEnum->label() }}
+                        </flux:badge>
+                        <flux:menu>
+                            @foreach ($this->priorities() as $priorityOption)
+                                <flux:menu.item wire:click="$set('priority', '{{ $priorityOption->value }}')" :icon="$priority === $priorityOption->value ? 'check' : $priorityOption->icon()">
+                                    {{ $priorityOption->label() }}
+                                </flux:menu.item>
+                            @endforeach
+                        </flux:menu>
+                    </flux:dropdown>
+
+                    {{-- Assignee --}}
+                    <flux:dropdown position="bottom" align="start">
+                        <flux:badge as="button" type="button" color="zinc" size="sm" rounded icon="user" icon:trailing="chevron-down" class="cursor-pointer">
+                            {{ $assigneeName ?? __('Niemand') }}
+                        </flux:badge>
+                        <flux:menu class="max-h-72 overflow-y-auto">
+                            <flux:menu.item wire:click="$set('assigneeId', null)" :icon="$assigneeId === null ? 'check' : null">{{ __('Niemand') }}</flux:menu.item>
+                            @foreach ($this->users as $user)
+                                <flux:menu.item wire:click="$set('assigneeId', {{ $user->id }})" :icon="$assigneeId === $user->id ? 'check' : null">{{ $user->name }}</flux:menu.item>
+                            @endforeach
+                        </flux:menu>
+                    </flux:dropdown>
+
+                    {{-- Deadline --}}
+                    <flux:dropdown position="bottom" align="start">
+                        <flux:badge as="button" type="button" color="zinc" size="sm" rounded icon="calendar" icon:trailing="chevron-down" class="cursor-pointer">
+                            {{ $dueDate ? \Illuminate\Support\Carbon::parse($dueDate)->translatedFormat('j M') : __('Deadline') }}
+                        </flux:badge>
+                        <flux:popover class="flex flex-col gap-2">
+                            <flux:calendar wire:model.live="dueDate" />
+                            @if ($dueDate)
+                                <flux:button wire:click="$set('dueDate', null)" size="xs" variant="subtle" icon="x-mark">{{ __('Wissen') }}</flux:button>
+                            @endif
+                        </flux:popover>
+                    </flux:dropdown>
+
+                    {{-- Labels --}}
+                    <flux:dropdown position="bottom" align="start">
+                        <flux:badge as="button" type="button" color="zinc" size="sm" rounded icon="tag" icon:trailing="chevron-down" class="cursor-pointer">
+                            {{ count($selectedLabels) > 0 ? count($selectedLabels).' '.__('labels') : __('Labels') }}
+                        </flux:badge>
+                        <flux:menu class="max-h-72 overflow-y-auto">
+                            @foreach ($this->labels as $label)
+                                <flux:menu.item wire:click="toggleLabel({{ $label->id }})" :icon="in_array($label->id, $selectedLabels) ? 'check' : null">
+                                    <span class="flex items-center gap-2">
+                                        <span class="size-2 rounded-full bg-{{ $label->color }}-500"></span>
+                                        {{ $label->name }}
+                                    </span>
+                                </flux:menu.item>
+                            @endforeach
+                            <flux:menu.separator />
+                            <div class="p-1" wire:sort:ignore>
+                                <form wire:submit="createLabel">
+                                    <flux:input wire:model="newLabelName" size="sm" placeholder="{{ __('Nieuw label...') }}" kbd="↵" />
+                                </form>
+                            </div>
+                        </flux:menu>
+                    </flux:dropdown>
+                </div>
+
+                {{-- Selected labels --}}
+                @if (count($selectedLabels) > 0)
+                    <div class="flex flex-wrap gap-1.5">
+                        @foreach ($this->labels->whereIn('id', $selectedLabels) as $label)
+                            <flux:badge :color="$label->color" size="sm">
+                                {{ $label->name }}
+                                <flux:badge.close wire:click="toggleLabel({{ $label->id }})" />
+                            </flux:badge>
+                        @endforeach
+                    </div>
+                @endif
+
+                {{-- Freshness --}}
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400">
+                    <span class="flex items-center gap-1.5">
+                        <flux:icon name="clock" variant="micro" />
+                        {{ __('Bijgewerkt') }} {{ $task->lastTouchedAt()?->diffForHumans() }}
+                    </span>
+                    @if ($task->isStale())
+                        <span class="flex items-center gap-2">
+                            <flux:badge color="amber" size="sm">{{ __('Verouderd') }}</flux:badge>
+                            <flux:link wire:click="markReviewed" class="cursor-pointer">{{ __('Markeer bijgewerkt') }}</flux:link>
+                        </span>
+                    @endif
+                </div>
+            </div>
+
             {{-- Body: main + sidebar --}}
             <div class="flex flex-1 flex-col gap-6 overflow-hidden pt-4 lg:flex-row lg:gap-8">
                 {{-- Main column --}}
                 <div class="flex-1 space-y-4 overflow-y-auto pe-1 lg:space-y-6 lg:pe-3">
-                    <flux:input wire:model.blur="title" variant="filled" class="font-display !text-xl lg:!text-2xl" placeholder="{{ __('Task titel') }}" />
+                    <flux:input wire:model.blur="title" wire:key="title-desktop-{{ $task->id }}" variant="filled" class="hidden font-display !text-xl lg:!block lg:!text-2xl" placeholder="{{ __('Task titel') }}" />
 
                     <div x-data="{ editing: false }" wire:key="desc-{{ $task->id }}">
                         <flux:subheading class="mb-1">{{ __('Omschrijving') }}</flux:subheading>
@@ -228,8 +343,8 @@
                     @endif
                 </div>
 
-                {{-- Sidebar: properties --}}
-                <div class="w-full shrink-0 space-y-5 overflow-y-auto border-t border-zinc-200 pt-4 lg:w-72 lg:border-s lg:border-t-0 lg:ps-6 lg:pt-0 dark:border-zinc-700">
+                {{-- Sidebar: properties (desktop only; mobile uses the compact bar up top) --}}
+                <div class="hidden w-full shrink-0 space-y-5 overflow-y-auto lg:block lg:w-72 lg:border-s lg:border-zinc-200 lg:ps-6 dark:lg:border-zinc-700">
                     <flux:select wire:model.live="status" :label="__('Status')" size="sm">
                         @foreach ($this->statuses() as $status)
                             <flux:select.option :value="$status->value">{{ $status->label() }}</flux:select.option>
