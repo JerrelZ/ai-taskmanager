@@ -6,6 +6,7 @@
     'canReply' => false,
     'canReact' => false,
     'conversation' => null,
+    'hasMore' => false,
 ])
 
 @php
@@ -24,7 +25,7 @@
     x-on:keydown.escape.window="lightbox = null"
 >
     <div
-        x-data="chatThread"
+        x-data="chatThread({{ $conversation?->id ?? 'null' }})"
         x-on:message-sent.window="scrollToBottom()"
         class="flex flex-1 flex-col overflow-y-auto bg-zinc-100 px-3 py-4 lg:px-6 dark:bg-zinc-900"
     >
@@ -36,6 +37,19 @@
         @else
         {{-- mt-auto keeps the conversation pinned to the bottom (WhatsApp-style) while staying scrollable. --}}
         <div class="mt-auto flex flex-col gap-0.5">
+        @if ($hasMore)
+            <div class="flex justify-center pb-2">
+                <button
+                    type="button"
+                    x-on:click="loadOlder()"
+                    wire:loading.attr="disabled"
+                    wire:target="loadOlder"
+                    class="rounded-full bg-white px-3 py-1 text-xs font-medium text-zinc-500 shadow-sm ring-1 ring-zinc-200 transition hover:bg-zinc-50 disabled:opacity-50 dark:bg-zinc-800 dark:text-zinc-400 dark:ring-zinc-700"
+                >
+                    {{ __('Toon oudere berichten') }}
+                </button>
+            </div>
+        @endif
         @php $prev = null; @endphp
         @foreach ($messages as $message)
             @php
@@ -226,6 +240,11 @@
                 @endif
             </div>
         @endforeach
+        </div>
+
+        {{-- Typing indicator (realtime whisper); hidden when nobody is typing. --}}
+        <div x-show="typingName" x-cloak class="px-1 pt-1 text-xs italic text-zinc-400">
+            <span x-text="typingName"></span> {{ __('is aan het typen…') }}
         </div>
 
         {{-- Jump back to the newest message; surfaces while reading older history. --}}

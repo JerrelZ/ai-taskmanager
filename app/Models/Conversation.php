@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ConversationType;
+use App\Events\MessageSent;
 use App\Notifications\NewMessageNotification;
 use Database\Factories\ConversationFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -102,7 +103,9 @@ class Conversation extends Model
         if ($this->type === ConversationType::Project) {
             $project = $this->project;
 
-            return $project !== null && ($user->isTeam() || $project->client_id === $user->client_id);
+            // isVisibleTo fences on workspace too, so a team member from another
+            // workspace can't reach this channel via a forged conversation id.
+            return $project !== null && $project->isVisibleTo($user);
         }
 
         return $this->users()->whereKey($user->id)->exists();
@@ -174,6 +177,8 @@ class Conversation extends Model
         ]);
 
         $this->forceFill(['last_message_at' => now()])->save();
+
+        MessageSent::dispatch($message);
 
         $this->notifyParticipantsOfNewMessage($message, $user);
 

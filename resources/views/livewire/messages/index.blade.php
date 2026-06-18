@@ -126,9 +126,10 @@
                 :can-reply="true"
                 :can-react="true"
                 :conversation="$conversation"
+                :has-more="$this->hasMoreMessages()"
             />
 
-            <x-chat.composer :mentions="$this->people->pluck('name')" :pending="$newChatAttachments" :draft-key="'chat-conv-'.$conversation->id" :reply-to="$this->replyingToMessage()" />
+            <x-chat.composer :mentions="$this->people->pluck('name')" :pending="$newChatAttachments" :draft-key="'chat-conv-'.$conversation->id" :reply-to="$this->replyingToMessage()" :conversation-id="$conversation->id" :user-name="$me->name" />
         @else
             <div class="flex h-full flex-col items-center justify-center gap-2 text-center text-zinc-400">
                 <flux:icon name="chat-bubble-left-right" class="size-12 text-zinc-300 dark:text-zinc-600" />

@@ -76,7 +76,10 @@ class TaskDetail extends Component
     }
 
     /**
-     * The currently open task with its relations.
+     * The currently open task with its relations. Re-checks visibility on every
+     * access so a tampered `taskId` (a public, client-settable property) can
+     * never read or mutate a task outside the user's workspace/client — every
+     * mutation flows through here.
      */
     #[Computed]
     public function task(): ?Task
@@ -85,9 +88,15 @@ class TaskDetail extends Component
             return null;
         }
 
-        return Task::query()
+        $task = Task::query()
             ->with(['project', 'subtasks.assignee', 'comments.user', 'activities.user', 'parent', 'attachments.uploader'])
             ->find($this->taskId);
+
+        if ($task === null || ! $task->project?->isVisibleTo(Auth::user())) {
+            return null;
+        }
+
+        return $task;
     }
 
     public function uploadAttachments(AttachmentService $attachments): void

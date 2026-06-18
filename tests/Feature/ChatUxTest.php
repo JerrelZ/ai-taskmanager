@@ -2,6 +2,7 @@
 
 use App\Enums\ConversationType;
 use App\Enums\UserRole;
+use App\Events\MessageSent;
 use App\Livewire\Messages\Index as MessagesIndex;
 use App\Livewire\Projects\Board;
 use App\Livewire\Projects\Chat;
@@ -12,6 +13,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
 use App\Support\Mentions;
+use Illuminate\Support\Facades\Event;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
@@ -29,6 +31,46 @@ function openChatWith(Conversation $conversation): Testable
 
     return Livewire::test(MessagesIndex::class)->call('openConversation', $conversation->id);
 }
+
+it('broadcasts a new message on the private conversation channel', function () {
+    Event::fake([MessageSent::class]);
+
+    $conversation = Conversation::factory()->create();
+    $message = $conversation->postMessage($this->user, 'Realtime hallo');
+
+    Event::assertDispatched(
+        MessageSent::class,
+        fn (MessageSent $event) => $event->message->is($message)
+            && $event->broadcastOn()[0]->name === 'private-conversation.'.$conversation->id,
+    );
+});
+
+it('loads only the most recent page of messages and can load older', function () {
+    $conversation = Conversation::factory()->create();
+
+    // 35 messages with zero-padded bodies (so "Bericht-001" isn't a substring
+    // of "Bericht-010") to spot exactly which page is loaded.
+    foreach (range(1, 35) as $i) {
+        Message::factory()->for($conversation)->create([
+            'body' => sprintf('Bericht-%03d', $i),
+            'created_at' => now()->addSeconds($i),
+        ]);
+    }
+
+    $component = openChatWith($conversation);
+
+    // First page = newest 30 (Bericht-006..035); the oldest are not loaded yet.
+    expect($component->instance()->thread())->toHaveCount(30);
+    $component->assertSee('Bericht-035')
+        ->assertDontSee('Bericht-001')
+        ->assertSee('Toon oudere berichten');
+
+    // Loading older reveals the rest.
+    $component->call('loadOlder');
+    expect($component->instance()->thread())->toHaveCount(35);
+    $component->assertSee('Bericht-001')
+        ->assertDontSee('Toon oudere berichten');
+});
 
 it('shows a "Vandaag" day separator for messages sent today', function () {
     $conversation = Conversation::factory()->create();
@@ -58,7 +100,7 @@ it('renders the jump-to-bottom control in an open conversation', function () {
 it('wires a per-conversation draft key into the composer', function () {
     $conversation = Conversation::factory()->create();
 
-    openChatWith($conversation)->assertSeeHtml("chatComposer([], 'chat-conv-{$conversation->id}')");
+    openChatWith($conversation)->assertSeeHtml("chatComposer([], 'chat-conv-{$conversation->id}'");
 });
 
 it('pushes the unread total to the browser when opening a conversation', function () {

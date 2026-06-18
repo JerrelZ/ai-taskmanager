@@ -60,6 +60,21 @@ class Index extends Component
     }
 
     /**
+     * Subscribe to the open conversation's realtime stream so a new message
+     * shows instantly (the 3s poll stays as a fallback when Reverb is down).
+     *
+     * @return array<string, string>
+     */
+    public function getListeners(): array
+    {
+        if ($this->conversationId === null) {
+            return [];
+        }
+
+        return ["echo-private:conversation.{$this->conversationId},.message.sent" => 'pollMessages'];
+    }
+
+    /**
      * Conversations the current user can see, most recent first.
      *
      * @return Collection<int, Conversation>
@@ -113,7 +128,32 @@ class Index extends Component
     #[Computed]
     public function thread(): Collection
     {
-        return $this->activeConversation?->messages()->with(['user', 'attachments', 'reactions', 'replyTo.user'])->get() ?? collect();
+        $conversation = $this->activeConversation;
+
+        if ($conversation === null) {
+            return collect();
+        }
+
+        // Load only the most recent page, newest-first, then flip to oldest-first
+        // for display so long histories don't load (or render) all at once.
+        return $conversation->messages()
+            ->with(['user', 'attachments', 'reactions', 'replyTo.user'])
+            ->reorder()
+            ->latest('id')
+            ->limit($this->messageLimit)
+            ->get()
+            ->sortBy('id')
+            ->values();
+    }
+
+    /**
+     * Whether the open conversation has older messages beyond the loaded page.
+     */
+    public function hasMoreMessages(): bool
+    {
+        $conversation = $this->activeConversation;
+
+        return $conversation !== null && $conversation->messages()->count() > $this->messageLimit;
     }
 
     /**
@@ -188,6 +228,7 @@ class Index extends Component
         }
 
         $this->conversationId = $conversation->id;
+        $this->messageLimit = 30;
         $conversation->markReadFor(Auth::user());
 
         unset($this->conversations, $this->activeConversation, $this->messages, $this->activeMuted);

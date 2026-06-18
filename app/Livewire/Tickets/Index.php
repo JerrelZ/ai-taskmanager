@@ -156,12 +156,20 @@ class Index extends Component
             return;
         }
 
+        // Never rank a task outside the user's workspace, even with a forged id.
+        $visibleInWorkspace = fn ($q) => $q->whereHas('project', fn ($p) => $p->visibleTo(Auth::user()));
+
+        if (! Task::query()->tap($visibleInWorkspace)->whereKey($id)->exists()) {
+            return;
+        }
+
         $displayed = $this->tickets->pluck('id')->reject(fn ($x) => $x === $id)->values()->all();
 
         $position = max(0, min($position, count($displayed)));
         $anchorAboveId = $position > 0 ? $displayed[$position - 1] : null;
 
         $global = Task::query()
+            ->tap($visibleInWorkspace)
             ->roots()
             ->actionable()
             ->orderBy('rank')
@@ -191,7 +199,10 @@ class Index extends Component
 
     public function markReviewed(int $id): void
     {
-        $task = Task::findOrFail($id);
+        // Scope by visible project so a forged id can't touch another tenant.
+        $task = Task::query()
+            ->whereHas('project', fn ($q) => $q->visibleTo(Auth::user()))
+            ->findOrFail($id);
         $task->update(['reviewed_at' => now()]);
 
         TaskActivity::log($task, 'reviewed');

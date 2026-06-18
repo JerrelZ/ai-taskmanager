@@ -5,12 +5,14 @@
     'pending' => [],
     'draftKey' => null,
     'replyTo' => null,
+    'conversationId' => null,
+    'userName' => null,
 ])
 
 <div
     @if ($draftKey) wire:key="composer-{{ $draftKey }}" @endif
     class="border-t border-zinc-200 bg-zinc-100 px-3 py-3 lg:px-4 dark:border-zinc-700 dark:bg-zinc-900"
-    x-data="chatComposer(@js(collect($mentions)->values()), @js($draftKey))"
+    x-data="chatComposer(@js(collect($mentions)->values()), @js($draftKey), @js($conversationId), @js($userName))"
     x-on:message-sent.window="reset()"
     x-on:reply-started.window="$refs.input?.focus()"
 >

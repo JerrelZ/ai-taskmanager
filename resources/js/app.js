@@ -124,9 +124,12 @@ document.addEventListener('alpine:init', () => {
      * devices with a real pointer (Shift+Enter for a newline), an emoji picker
      * and inline @mention autocomplete against the conversation members.
      */
-    window.Alpine.data('chatComposer', (names, draftKey = null) => ({
+    window.Alpine.data('chatComposer', (names, draftKey = null, conversationId = null, userName = null) => ({
         names,
         draftKey,
+        conversationId,
+        userName,
+        lastWhisperAt: 0,
         open: false,
         matches: [],
         active: 0,
@@ -155,6 +158,29 @@ document.addEventListener('alpine:init', () => {
             this.detectMention();
             this.detectCommand();
             this.saveDraft();
+            this.whisperTyping();
+        },
+
+        // Tell other participants we're typing, throttled so we whisper at most
+        // once every 1.5s. Best-effort: silently does nothing without Echo.
+        whisperTyping() {
+            if (!this.conversationId || !window.Echo) {
+                return;
+            }
+
+            const now = Date.now();
+
+            if (now - this.lastWhisperAt < 1500) {
+                return;
+            }
+
+            this.lastWhisperAt = now;
+
+            try {
+                window.Echo.private(`conversation.${this.conversationId}`).whisper('typing', { name: this.userName });
+            } catch (error) {
+                // Echo not connected; ignore.
+            }
         },
 
         // Suggest slash commands while the message is just "/word" at the start.
@@ -570,14 +596,24 @@ document.addEventListener('alpine:init', () => {
      * Message thread: stays pinned to the newest message, but leaves the
      * scroll position alone while the user is reading older history.
      */
-    window.Alpine.data('chatThread', () => ({
+    window.Alpine.data('chatThread', (conversationId = null) => ({
         pinned: true,
         hasNew: false,
+        loadingOlder: false,
+        typingName: null,
+        typingTimeout: null,
 
         init() {
             this.scrollToBottom();
+            this.listenForTyping(conversationId);
 
             this.observer = new MutationObserver(() => {
+                // While prepending an older page, loadOlder() restores the
+                // scroll position itself — don't treat it as new activity.
+                if (this.loadingOlder) {
+                    return;
+                }
+
                 if (this.pinned) {
                     this.scrollToBottom();
                 } else {
@@ -600,6 +636,49 @@ document.addEventListener('alpine:init', () => {
 
         destroy() {
             this.observer?.disconnect();
+            clearTimeout(this.typingTimeout);
+        },
+
+        // Show a "… is typing" hint when another participant whispers on the
+        // conversation channel. No-ops cleanly when Reverb/Echo isn't connected.
+        listenForTyping(conversationId) {
+            if (!conversationId || !window.Echo) {
+                return;
+            }
+
+            try {
+                window.Echo.private(`conversation.${conversationId}`).listenForWhisper('typing', (event) => {
+                    this.typingName = event?.name ?? null;
+                    clearTimeout(this.typingTimeout);
+                    this.typingTimeout = setTimeout(() => {
+                        this.typingName = null;
+                    }, 3000);
+
+                    if (this.pinned) {
+                        this.scrollToBottom();
+                    }
+                });
+            } catch (error) {
+                // Echo not available; typing hints are a best-effort enhancement.
+            }
+        },
+
+        // Load an older page and keep the viewport anchored: the messages the
+        // user is reading stay put while content grows above them.
+        loadOlder() {
+            if (this.loadingOlder) {
+                return;
+            }
+
+            this.loadingOlder = true;
+            const previousHeight = this.$el.scrollHeight;
+
+            this.$wire.loadOlder().then(() => {
+                this.$nextTick(() => {
+                    this.$el.scrollTop = this.$el.scrollHeight - previousHeight;
+                    this.loadingOlder = false;
+                });
+            });
         },
 
         scrollToBottom() {
@@ -609,3 +688,11 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 });
+
+/**
+ * Echo exposes an expressive API for subscribing to channels and listening
+ * for events that are broadcast by Laravel. Echo and event broadcasting
+ * allow your team to quickly build robust real-time web applications.
+ */
+
+import './echo';

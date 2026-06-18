@@ -38,6 +38,17 @@ class Chat extends Component
     }
 
     /**
+     * Subscribe to the channel's realtime stream for instant message delivery
+     * (the 3s poll remains a fallback).
+     *
+     * @return array<string, string>
+     */
+    public function getListeners(): array
+    {
+        return ["echo-private:conversation.{$this->conversation->id},.message.sent" => 'pollChat'];
+    }
+
+    /**
      * Called by the poll loop: pull in new messages and keep the channel marked
      * as read while the user has it open.
      */
@@ -54,7 +65,23 @@ class Chat extends Component
     #[Computed]
     public function thread(): Collection
     {
-        return $this->conversation->messages()->with(['user', 'attachments', 'reactions', 'replyTo.user'])->get();
+        // Most recent page only, newest-first then flipped to oldest-first.
+        return $this->conversation->messages()
+            ->with(['user', 'attachments', 'reactions', 'replyTo.user'])
+            ->reorder()
+            ->latest('id')
+            ->limit($this->messageLimit)
+            ->get()
+            ->sortBy('id')
+            ->values();
+    }
+
+    /**
+     * Whether the channel has older messages beyond the loaded page.
+     */
+    public function hasMoreMessages(): bool
+    {
+        return $this->conversation->messages()->count() > $this->messageLimit;
     }
 
     /**

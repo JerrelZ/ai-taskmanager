@@ -20,6 +20,19 @@ trait ManagesChatInteractions
 {
     public ?int $replyingToId = null;
 
+    /** How many of the most recent messages to load; grows as you scroll up. */
+    public int $messageLimit = 30;
+
+    /**
+     * Load an older page of messages (triggered when scrolling to the top).
+     */
+    public function loadOlder(): void
+    {
+        $this->messageLimit += 30;
+
+        $this->refreshThread();
+    }
+
     /**
      * Begin replying to a message the current user can see.
      */
