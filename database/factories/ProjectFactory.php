@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\ProjectStatus;
 use App\Models\Project;
+use App\Models\Workspace;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -21,6 +22,7 @@ class ProjectFactory extends Factory
         $name = fake()->unique()->catchPhrase();
 
         return [
+            'workspace_id' => Workspace::query()->value('id') ?? Workspace::factory(),
             'client_id' => null,
             'name' => $name,
             'key' => Project::generateKey($name),

@@ -28,7 +28,7 @@ class Chat extends Component
     public function mount(Project $project): void
     {
         $user = Auth::user();
-        abort_if(! $user->isTeam() && $project->client_id !== $user->client_id, 403);
+        abort_unless($project->isVisibleTo($user), 403);
 
         $this->project = $project;
         $this->conversation = $project->channel();

@@ -38,7 +38,11 @@ class Index extends Component
     #[Computed]
     public function users(): Collection
     {
-        return User::query()->with('client')->orderBy('name')->get();
+        return User::query()
+            ->where('workspace_id', Auth::user()->workspace_id)
+            ->with('client')
+            ->orderBy('name')
+            ->get();
     }
 
     /**
@@ -47,7 +51,10 @@ class Index extends Component
     #[Computed]
     public function clients(): Collection
     {
-        return Client::query()->orderBy('name')->get();
+        return Client::query()
+            ->where('workspace_id', Auth::user()->workspace_id)
+            ->orderBy('name')
+            ->get();
     }
 
     /**
@@ -73,6 +80,7 @@ class Index extends Component
         $role = UserRole::from($validated['role']);
 
         User::create([
+            'workspace_id' => Auth::user()->workspace_id,
             'name' => $validated['name'],
             'email' => $validated['email'],
             'role' => $role,

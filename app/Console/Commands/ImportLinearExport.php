@@ -9,6 +9,7 @@ use App\Enums\UserRole;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\Workspace;
 use App\Services\AttachmentService;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -43,7 +44,13 @@ class ImportLinearExport extends Command
         'projects', 'clients', 'conversation_user', 'conversations', 'messages',
         'email_contact_links', 'email_messages', 'email_threads', 'email_folders',
         'email_accounts', 'reply_templates', 'claude_code_runs', 'notifications', 'users',
+        'workspaces',
     ];
+
+    /**
+     * The workspace every imported record belongs to.
+     */
+    private Workspace $workspace;
 
     /**
      * Statuses considered "completed" and therefore skipped (matches the app's
@@ -75,6 +82,8 @@ class ImportLinearExport extends Command
         }
 
         $this->wipe();
+
+        $this->workspace = Workspace::create(['name' => $this->option('project-name').' werkruimte']);
 
         $project = $this->createProject();
         $admin = $this->resolveUser($this->option('admin-email'), UserRole::Admin);
@@ -127,6 +136,7 @@ class ImportLinearExport extends Command
     private function createProject(): Project
     {
         return Project::create([
+            'workspace_id' => $this->workspace->id,
             'name' => $this->option('project-name'),
             'key' => $this->option('project-key'),
             'color' => 'blue',
@@ -278,6 +288,7 @@ class ImportLinearExport extends Command
         return $this->users[$key] ??= User::firstOrCreate(
             ['email' => $email],
             [
+                'workspace_id' => $this->workspace->id,
                 'name' => $this->nameFromEmail($email),
                 'password' => Hash::make($this->option('password')),
                 'role' => $role,

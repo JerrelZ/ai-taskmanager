@@ -16,6 +16,7 @@ use Illuminate\Support\Str;
 
 /**
  * @property int $id
+ * @property int|null $workspace_id
  * @property int|null $client_id
  * @property string $name
  * @property string|null $key
@@ -33,6 +34,7 @@ class Project extends Model
     use HasFactory;
 
     protected $fillable = [
+        'workspace_id',
         'client_id',
         'name',
         'key',
@@ -56,6 +58,14 @@ class Project extends Model
     }
 
     /**
+     * @return BelongsTo<Workspace, $this>
+     */
+    public function workspace(): BelongsTo
+    {
+        return $this->belongsTo(Workspace::class);
+    }
+
+    /**
      * @return BelongsTo<Client, $this>
      */
     public function client(): BelongsTo
@@ -64,16 +74,32 @@ class Project extends Model
     }
 
     /**
-     * Limit projects to those a user is allowed to see.
-     * Team members see everything; clients only see their own client's projects.
+     * Limit projects to those a user is allowed to see. Everything is first
+     * fenced to the user's own workspace; within it team members see every
+     * project while clients see only their own client's projects.
      *
      * @param  Builder<Project>  $query
      */
     public function scopeVisibleTo(Builder $query, User $user): void
     {
+        $query->where('workspace_id', $user->workspace_id);
+
         if (! $user->isTeam()) {
             $query->where('client_id', $user->client_id);
         }
+    }
+
+    /**
+     * Whether the given user may access this project directly (the row-level
+     * counterpart to scopeVisibleTo, used to guard route-bound components).
+     */
+    public function isVisibleTo(User $user): bool
+    {
+        if ($this->workspace_id !== $user->workspace_id) {
+            return false;
+        }
+
+        return $user->isTeam() || $this->client_id === $user->client_id;
     }
 
     /**
@@ -164,12 +190,14 @@ class Project extends Model
      */
     public function accessibleUsers(): Builder
     {
-        return User::query()->where(function (Builder $query) {
-            $query->whereIn('role', [UserRole::Admin->value, UserRole::Member->value]);
+        return User::query()
+            ->where('workspace_id', $this->workspace_id)
+            ->where(function (Builder $query) {
+                $query->whereIn('role', [UserRole::Admin->value, UserRole::Member->value]);
 
-            if ($this->client_id !== null) {
-                $query->orWhere('client_id', $this->client_id);
-            }
-        });
+                if ($this->client_id !== null) {
+                    $query->orWhere('client_id', $this->client_id);
+                }
+            });
     }
 }

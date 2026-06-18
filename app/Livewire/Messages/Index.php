@@ -378,8 +378,7 @@ class Index extends Component
             return;
         }
 
-        $user = Auth::user();
-        abort_if(! $user->isTeam() && $project->client_id !== $user->client_id, 403);
+        abort_unless($project->isVisibleTo(Auth::user()), 403);
 
         $draft = $drafter->draft($message->body, $project);
 

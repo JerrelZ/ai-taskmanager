@@ -6,6 +6,7 @@ use App\Enums\MessengerNotificationMode;
 use App\Enums\UserRole;
 use App\Models\Client;
 use App\Models\User;
+use App\Models\Workspace;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -28,6 +29,7 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
+            'workspace_id' => Workspace::query()->value('id') ?? Workspace::factory(),
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'role' => UserRole::Member,

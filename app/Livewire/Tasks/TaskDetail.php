@@ -59,8 +59,7 @@ class TaskDetail extends Component
     {
         $task = Task::with('project')->findOrFail($taskId);
 
-        $user = Auth::user();
-        abort_if(! $user->isTeam() && $task->project->client_id !== $user->client_id, 403);
+        abort_unless($task->project->isVisibleTo(Auth::user()), 403);
 
         $this->taskId = $task->id;
         $this->title = $task->title;

@@ -14,6 +14,7 @@ use App\Models\Message;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\Workspace;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
 
@@ -21,12 +22,15 @@ class DemoSeeder extends Seeder
 {
     public function run(): void
     {
+        $workspace = Workspace::factory()->create(['name' => 'Demo werkruimte']);
+
         $demoUser = User::query()->firstWhere('email', 'test@example.com')
             ?? User::factory()->create([
+                'workspace_id' => $workspace->id,
                 'name' => 'Test User',
                 'email' => 'test@example.com',
             ]);
-        $demoUser->update(['role' => UserRole::Admin]);
+        $demoUser->update(['role' => UserRole::Admin, 'workspace_id' => $workspace->id]);
 
         $teammates = collect([
             'Sanne de Vries',
@@ -34,6 +38,7 @@ class DemoSeeder extends Seeder
             'Lisa Jansen',
             'Daan Visser',
         ])->map(fn (string $name) => User::factory()->create([
+            'workspace_id' => $workspace->id,
             'name' => $name,
             'email' => str($name)->lower()->replace(' ', '.').'@example.com',
         ]));
@@ -43,10 +48,11 @@ class DemoSeeder extends Seeder
         $clients = collect([
             ['name' => 'Acme BV', 'color' => 'blue'],
             ['name' => 'Globex', 'color' => 'green'],
-        ])->map(fn (array $data) => Client::create($data));
+        ])->map(fn (array $data) => Client::create([...$data, 'workspace_id' => $workspace->id]));
 
         // A client contact per client (can log in to their own projects).
         $clients->each(fn (Client $client) => User::factory()->client($client)->create([
+            'workspace_id' => $workspace->id,
             'name' => $client->name.' Contact',
             'email' => str($client->name)->lower()->replace(' ', '').'@client.test',
         ]));
@@ -96,6 +102,7 @@ class DemoSeeder extends Seeder
         foreach ($projects as $index => $projectData) {
             $project = Project::create([
                 ...$projectData,
+                'workspace_id' => $workspace->id,
                 'position' => $index,
             ]);
 

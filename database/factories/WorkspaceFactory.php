@@ -2,14 +2,13 @@
 
 namespace Database\Factories;
 
-use App\Models\Client;
 use App\Models\Workspace;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<Client>
+ * @extends Factory<Workspace>
  */
-class ClientFactory extends Factory
+class WorkspaceFactory extends Factory
 {
     /**
      * Define the model's default state.
@@ -19,9 +18,7 @@ class ClientFactory extends Factory
     public function definition(): array
     {
         return [
-            'workspace_id' => Workspace::query()->value('id') ?? Workspace::factory(),
             'name' => fake()->unique()->company(),
-            'color' => fake()->randomElement(['zinc', 'red', 'orange', 'amber', 'green', 'blue', 'indigo', 'purple', 'pink']),
         ];
     }
 }

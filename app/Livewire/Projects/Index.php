@@ -43,7 +43,10 @@ class Index extends Component
     #[Computed]
     public function clients(): Collection
     {
-        return Client::query()->orderBy('name')->get();
+        return Client::query()
+            ->where('workspace_id', Auth::user()->workspace_id)
+            ->orderBy('name')
+            ->get();
     }
 
     /**
@@ -73,7 +76,10 @@ class Index extends Component
 
         $validated = $this->validate();
 
+        $workspaceId = Auth::user()->workspace_id;
+
         $project = Project::create([
+            'workspace_id' => $workspaceId,
             'name' => $validated['name'],
             'key' => Project::generateKey($validated['name']),
             'color' => $validated['color'],
@@ -82,7 +88,7 @@ class Index extends Component
             'repo_path' => $this->repoPath !== '' ? $this->repoPath : null,
             'stack' => $this->stack !== '' ? $this->stack : null,
             'context' => $this->context !== '' ? $this->context : null,
-            'position' => (int) Project::max('position') + 1,
+            'position' => (int) Project::where('workspace_id', $workspaceId)->max('position') + 1,
         ]);
 
         $this->reset('name', 'description', 'repoPath', 'stack', 'context');

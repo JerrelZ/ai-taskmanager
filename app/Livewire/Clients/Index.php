@@ -33,6 +33,7 @@ class Index extends Component
     public function clients(): Collection
     {
         return Client::query()
+            ->where('workspace_id', Auth::user()->workspace_id)
             ->withCount(['projects', 'users'])
             ->orderBy('name')
             ->get();
@@ -44,7 +45,10 @@ class Index extends Component
 
         $validated = $this->validate();
 
-        Client::create($validated);
+        Client::create([
+            ...$validated,
+            'workspace_id' => Auth::user()->workspace_id,
+        ]);
 
         $this->reset('name');
         $this->color = 'blue';

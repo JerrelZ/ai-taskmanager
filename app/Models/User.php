@@ -22,6 +22,7 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
 
 /**
  * @property int $id
+ * @property int|null $workspace_id
  * @property string $name
  * @property string $email
  * @property UserRole $role
@@ -40,7 +41,7 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password', 'role', 'client_id'])]
+#[Fillable(['name', 'email', 'password', 'role', 'client_id', 'workspace_id'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -98,6 +99,14 @@ class User extends Authenticatable implements PasskeyUser
 
         return $last === null
             || $last->copy()->addHours(max(1, $this->messenger_digest_interval_hours))->isPast();
+    }
+
+    /**
+     * @return BelongsTo<Workspace, $this>
+     */
+    public function workspace(): BelongsTo
+    {
+        return $this->belongsTo(Workspace::class);
     }
 
     /**
