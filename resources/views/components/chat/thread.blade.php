@@ -94,12 +94,25 @@
 
                     @if ($message->replyTo)
                         <div @class([
-                            'mb-1 border-s-2 ps-2 text-xs',
-                            'border-white/40 text-white/80' => $mine,
-                            'border-zinc-300 text-zinc-500 dark:border-zinc-600 dark:text-zinc-400' => ! $mine,
+                            'mb-1 flex flex-col gap-0.5 overflow-hidden rounded-lg border-s-[3px] px-2 py-1 text-xs',
+                            'border-white/70 bg-white/15' => $mine,
+                            'border-brand-400 bg-zinc-100 dark:border-brand-500 dark:bg-zinc-700/50' => ! $mine,
                         ])>
-                            <div class="font-medium">{{ $message->replyTo->user?->name ?? __('Onbekend') }}</div>
-                            <div class="truncate">{{ \Illuminate\Support\Str::limit($message->replyTo->body, 60) ?: __('Bijlage') }}</div>
+                            <div @class([
+                                'flex items-center gap-1 font-semibold',
+                                'text-white/90' => $mine,
+                                'text-brand-600 dark:text-brand-400' => ! $mine,
+                            ])>
+                                <flux:icon name="arrow-uturn-left" variant="micro" class="size-3 shrink-0" />
+                                {{ $message->replyTo->user?->name ?? __('Onbekend') }}
+                            </div>
+                            <div @class([
+                                'truncate',
+                                'text-white/70' => $mine,
+                                'text-zinc-500 dark:text-zinc-400' => ! $mine,
+                            ])>
+                                {{ \Illuminate\Support\Str::limit($message->replyTo->body, 60) ?: __('Bijlage') }}
+                            </div>
                         </div>
                     @endif
 
