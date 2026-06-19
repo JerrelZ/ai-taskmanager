@@ -115,6 +115,18 @@ test('a comment can be posted', function () {
         ->and($comment->user_id)->toBe($this->user->id);
 });
 
+test('posting a comment logs an activity', function () {
+    openDetail()
+        ->set('newComment', 'Goed bezig!')
+        ->call('addComment');
+
+    $activity = $this->task->activities()->where('type', 'comment')->first();
+
+    expect($activity)->not->toBeNull()
+        ->and($activity->user_id)->toBe($this->user->id)
+        ->and($activity->description())->toBe('plaatste een reactie');
+});
+
 test('the comment composer is wired for mention autocomplete', function () {
     $mate = User::factory()->create(['name' => 'Sanne Mention']);
 

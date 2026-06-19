@@ -352,10 +352,12 @@ class TaskDetail extends Component
             return;
         }
 
-        $task->comments()->create([
+        $comment = $task->comments()->create([
             'user_id' => Auth::id(),
             'body' => $body,
         ]);
+
+        TaskActivity::log($task, 'comment', ['comment_id' => $comment->id]);
 
         $this->newComment = '';
         unset($this->task);

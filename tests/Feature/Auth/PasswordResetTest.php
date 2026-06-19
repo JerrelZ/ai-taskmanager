@@ -41,6 +41,16 @@ test('reset password screen can be rendered', function () {
     });
 });
 
+test('the reset password notification is localised in Dutch', function () {
+    $user = User::factory()->make();
+
+    $mail = (new ResetPassword('test-token'))->toMail($user);
+
+    expect($mail->subject)->toBe('Wachtwoord opnieuw instellen')
+        ->and($mail->actionText)->toBe('Wachtwoord opnieuw instellen')
+        ->and($mail->actionUrl)->toContain('test-token');
+});
+
 test('password can be reset with valid token', function () {
     Notification::fake();
 

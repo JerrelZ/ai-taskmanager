@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -28,7 +30,33 @@ class FortifyServiceProvider extends ServiceProvider
     {
         $this->configureActions();
         $this->configureViews();
+        $this->configureNotifications();
         $this->configureRateLimiting();
+    }
+
+    /**
+     * Localise the framework auth notifications (Dutch) and brand them with the
+     * application name. Reuses Laravel's own reset-URL generation.
+     */
+    private function configureNotifications(): void
+    {
+        ResetPassword::toMailUsing(function (object $notifiable, string $token): MailMessage {
+            $url = route('password.reset', [
+                'token' => $token,
+                'email' => $notifiable->getEmailForPasswordReset(),
+            ]);
+
+            $expireMinutes = config('auth.passwords.'.config('auth.defaults.passwords').'.expire');
+
+            return (new MailMessage)
+                ->subject(__('Wachtwoord opnieuw instellen'))
+                ->greeting(__('Hallo!'))
+                ->line(__('Je ontvangt deze e-mail omdat we een verzoek hebben gekregen om het wachtwoord van je account opnieuw in te stellen.'))
+                ->action(__('Wachtwoord opnieuw instellen'), $url)
+                ->line(__('Deze link verloopt over :count minuten.', ['count' => $expireMinutes]))
+                ->line(__('Heb je geen verzoek gedaan? Dan hoef je niets te doen.'))
+                ->salutation(__('Met vriendelijke groet, :app', ['app' => config('app.name')]));
+        });
     }
 
     /**

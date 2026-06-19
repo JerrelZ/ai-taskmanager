@@ -67,6 +67,7 @@ class Activity extends Model
                 ? 'zette de deadline op '.$props['to']
                 : 'haalde de deadline weg',
             'reviewed' => 'markeerde als bijgewerkt',
+            'comment' => 'plaatste een reactie',
             default => $this->type,
         };
     }

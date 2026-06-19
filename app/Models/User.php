@@ -40,10 +40,12 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
  * @property MessengerNotificationMode $messenger_notification_mode
  * @property int $messenger_digest_interval_hours
  * @property Carbon|null $messenger_digest_last_sent_at
+ * @property bool $daily_recap_enabled
+ * @property Carbon|null $daily_recap_last_sent_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password', 'role', 'client_id', 'workspace_id'])]
+#[Fillable(['name', 'email', 'password', 'role', 'client_id', 'workspace_id', 'daily_recap_enabled'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -65,6 +67,8 @@ class User extends Authenticatable implements PasskeyUser
             'messenger_notifications_enabled' => 'boolean',
             'messenger_notification_mode' => MessengerNotificationMode::class,
             'messenger_digest_last_sent_at' => 'datetime',
+            'daily_recap_enabled' => 'boolean',
+            'daily_recap_last_sent_at' => 'datetime',
         ];
     }
 
@@ -192,6 +196,15 @@ class User extends Authenticatable implements PasskeyUser
     public function canCopyPrompt(): bool
     {
         return (bool) $this->can_copy_prompt;
+    }
+
+    /**
+     * Whether this user already received their daily recap today, used to keep
+     * repeated command runs from sending duplicate e-mails.
+     */
+    public function hasReceivedRecapToday(): bool
+    {
+        return $this->daily_recap_last_sent_at?->isToday() ?? false;
     }
 
     /**
