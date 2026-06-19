@@ -23,3 +23,6 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Local working data that may contain secrets — keep out of the repo.
+/blogmatch-tasks.csv
