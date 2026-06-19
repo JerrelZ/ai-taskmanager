@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Enums\ConversationType;
 use App\Events\MessageSent;
+use App\Notifications\MentionNotification;
 use App\Notifications\NewMessageNotification;
+use App\Support\Mentions;
 use Database\Factories\ConversationFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * @property int $id
@@ -229,7 +232,23 @@ class Conversation extends Model
 
         $url = route('messages.index', ['conversationId' => $this->id]);
 
+        // A direct @mention gets its own, more prominent notification; everyone
+        // else in the conversation gets the regular new-message notification.
+        $mentionedIds = Mentions::extractUsers($message->body, $recipients)->pluck('id')->all();
+        $preview = Str::limit(trim($message->body), 120) ?: __('Stuurde een bijlage.');
+
         foreach ($recipients as $recipient) {
+            if (in_array($recipient->id, $mentionedIds, true)) {
+                $recipient->notify(new MentionNotification(
+                    __(':sender noemde je', ['sender' => $sender->name]),
+                    $preview,
+                    $url,
+                    'conversation-'.$this->id,
+                ));
+
+                continue;
+            }
+
             $recipient->notify(new NewMessageNotification($message, $this->pushTitleFor($sender), $url));
         }
     }

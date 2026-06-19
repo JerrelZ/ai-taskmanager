@@ -135,6 +135,14 @@ test('the comment composer is wired for mention autocomplete', function () {
         ->assertSeeHtml($mate->name);
 });
 
+test('the activity log is shown with a count once there is activity', function () {
+    openDetail()
+        ->set('newComment', 'Eerste reactie')
+        ->call('addComment')
+        ->assertSee('Activiteit')
+        ->assertSee('plaatste een reactie');
+});
+
 test('a task can be deleted', function () {
     openDetail()->call('deleteTask');
 

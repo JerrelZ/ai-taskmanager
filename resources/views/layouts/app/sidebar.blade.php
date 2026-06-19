@@ -80,11 +80,23 @@
                         :current="request()->routeIs('team.*')" wire:navigate>
                         {{ __('Team') }}
                     </flux:sidebar.item>
+                    @if (auth()->user()->email === \App\Livewire\System\Health::ALLOWED_EMAIL)
+                        <flux:sidebar.item icon="heart" :href="route('system.health')"
+                            :current="request()->routeIs('system.health')" wire:navigate>
+                            {{ __('Systeemstatus') }}
+                        </flux:sidebar.item>
+                    @endif
                 </flux:sidebar.group>
             </flux:sidebar.nav>
         @endif
 
         <flux:spacer />
+
+        <div x-data="installPrompt" x-show="installable" x-cloak class="px-2 pb-2">
+            <flux:button x-on:click="install" icon="arrow-down-tray" size="sm" variant="subtle" class="w-full">
+                {{ __('Installeer app') }}
+            </flux:button>
+        </div>
 
         <div class="px-2 pb-2">
             <flux:radio.group x-data variant="segmented" size="sm" x-model="$flux.appearance" class="w-full">

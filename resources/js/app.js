@@ -118,7 +118,55 @@ window.addEventListener('unread-messages-changed', (event) => {
     applyUnreadTitleBadge();
 });
 
+// Capture the install prompt as early as possible so the in-app "Installeer
+// app" button can fire it later. The event only fires on installable visits
+// (served over HTTPS, not already installed) on supporting browsers.
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    window.dispatchEvent(new CustomEvent('pwa-installable', { detail: { installable: true } }));
+});
+
+window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    window.dispatchEvent(new CustomEvent('pwa-installable', { detail: { installable: false } }));
+});
+
 document.addEventListener('alpine:init', () => {
+    /**
+     * Drives the sidebar "Installeer app" button. It only reveals itself once
+     * the browser has offered an install prompt and hides again once installed
+     * or when the app is already running in standalone (installed) mode.
+     */
+    window.Alpine.data('installPrompt', () => ({
+        installable: deferredInstallPrompt !== null,
+
+        init() {
+            if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+                this.installable = false;
+
+                return;
+            }
+
+            window.addEventListener('pwa-installable', (event) => {
+                this.installable = event.detail.installable;
+            });
+        },
+
+        async install() {
+            if (!deferredInstallPrompt) {
+                return;
+            }
+
+            deferredInstallPrompt.prompt();
+            await deferredInstallPrompt.userChoice;
+            deferredInstallPrompt = null;
+            this.installable = false;
+        },
+    }));
+
     /**
      * WhatsApp-style chat composer: auto-growing textarea, Enter-to-send on
      * devices with a real pointer (Shift+Enter for a newline), an emoji picker

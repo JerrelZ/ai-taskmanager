@@ -307,6 +307,66 @@ class Board extends Component
         unset($this->tasks, $this->columns);
     }
 
+    /**
+     * Assign a task from the inline picker on a card or row.
+     */
+    public function setAssignee(int $id, ?int $userId): void
+    {
+        $task = $this->project->rootTasks()->findOrFail($id);
+        $userId = $userId ?: null;
+
+        if ($userId !== null && ! $this->users->contains('id', $userId)) {
+            return;
+        }
+
+        if ($task->assignee_id === $userId) {
+            return;
+        }
+
+        TaskActivity::log($task, 'assignee', ['to' => $userId ? User::find($userId)?->name : null]);
+        $task->update(['assignee_id' => $userId]);
+
+        unset($this->tasks, $this->columns);
+    }
+
+    /**
+     * Set or clear a task's deadline from the inline picker on a card or row.
+     */
+    public function setDue(int $id, ?string $due): void
+    {
+        $task = $this->project->rootTasks()->findOrFail($id);
+        $due = $due ?: null;
+
+        if ($due !== null && strtotime($due) === false) {
+            return;
+        }
+
+        if ($task->due_date?->format('Y-m-d') === $due) {
+            return;
+        }
+
+        TaskActivity::log($task, 'due', ['to' => $due]);
+        $task->update(['due_date' => $due]);
+
+        unset($this->tasks, $this->columns);
+    }
+
+    /**
+     * Toggle a label on a task from the inline picker on a card or row.
+     */
+    public function toggleLabel(int $id, int $labelId): void
+    {
+        $task = $this->project->rootTasks()->findOrFail($id);
+
+        if (! $this->labels->contains('id', $labelId)) {
+            return;
+        }
+
+        $task->labels()->toggle($labelId);
+
+        unset($this->tasks, $this->columns);
+    }
+
     public function createTask(string $status): void
     {
         $title = trim($this->newTaskTitle[$status] ?? '');

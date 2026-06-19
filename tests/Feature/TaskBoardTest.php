@@ -139,3 +139,37 @@ test('only root tasks appear on the board, not subtasks', function () {
         ->assertSee('Parent task')
         ->assertDontSee('Subtask hidden');
 });
+
+test('the assignee can be set inline on the board', function () {
+    $mate = User::factory()->create();
+    $task = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create();
+
+    Livewire::test(Board::class, ['project' => $this->project])
+        ->call('setAssignee', $task->id, $mate->id);
+
+    expect($task->refresh()->assignee_id)->toBe($mate->id)
+        ->and($task->activities()->where('type', 'assignee')->exists())->toBeTrue();
+});
+
+test('the deadline can be set and cleared inline on the board', function () {
+    $task = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['due_date' => null]);
+
+    $component = Livewire::test(Board::class, ['project' => $this->project])
+        ->call('setDue', $task->id, '2026-07-01');
+    expect($task->refresh()->due_date->format('Y-m-d'))->toBe('2026-07-01');
+
+    $component->call('setDue', $task->id, null);
+    expect($task->refresh()->due_date)->toBeNull();
+});
+
+test('a label can be toggled inline on the board', function () {
+    $label = Label::factory()->create();
+    $task = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create();
+
+    $component = Livewire::test(Board::class, ['project' => $this->project])
+        ->call('toggleLabel', $task->id, $label->id);
+    expect($task->labels()->count())->toBe(1);
+
+    $component->call('toggleLabel', $task->id, $label->id);
+    expect($task->fresh()->labels()->count())->toBe(0);
+});

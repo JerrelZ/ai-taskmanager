@@ -13,6 +13,10 @@
 
     @include('livewire.partials.priority-picker', ['task' => $task])
 
+    <div class="hidden shrink-0 sm:block">
+        @include('livewire.partials.status-picker', ['task' => $task])
+    </div>
+
     <span class="shrink-0 font-mono text-[0.7rem] tracking-tight text-zinc-400">{{ $task->identifier() }}</span>
 
     <p @class([
@@ -34,21 +38,15 @@
         </span>
     @endif
 
-    @if ($task->due_date)
-        <span @class([
-            'flex shrink-0 items-center gap-1 text-xs text-zinc-400',
-            'text-red-500' => $task->due_date->isPast() && ! $task->isComplete(),
-        ])>
-            <flux:icon name="calendar" variant="micro" />
-            {{ $task->due_date->translatedFormat('j M') }}
-        </span>
-    @endif
+    <div class="hidden shrink-0 sm:block">
+        @include('livewire.partials.label-picker', ['task' => $task])
+    </div>
 
-    <div class="w-6 shrink-0">
-        @if ($task->assignee)
-            <flux:tooltip :content="$task->assignee->name">
-                <flux:avatar size="xs" circle :name="$task->assignee->name" :initials="$task->assignee->initials()" />
-            </flux:tooltip>
-        @endif
+    <div class="hidden shrink-0 sm:block">
+        @include('livewire.partials.due-picker', ['task' => $task])
+    </div>
+
+    <div class="shrink-0">
+        @include('livewire.partials.assignee-picker', ['task' => $task])
     </div>
 </div>

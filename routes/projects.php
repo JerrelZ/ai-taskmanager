@@ -5,6 +5,7 @@ use App\Livewire\Email\Inbox as EmailInbox;
 use App\Livewire\Messages\Index as MessagesIndex;
 use App\Livewire\Projects\Board;
 use App\Livewire\Projects\Index;
+use App\Livewire\System\Health as SystemHealth;
 use App\Livewire\Team\Index as TeamIndex;
 use App\Livewire\Tickets\Index as TicketsIndex;
 use App\Livewire\Tickets\Ready as TicketsReady;
@@ -21,4 +22,7 @@ Route::middleware(['auth'])->group(function () {
     // Admin-only management.
     Route::livewire('clients', ClientsIndex::class)->name('clients.index');
     Route::livewire('team', TeamIndex::class)->name('team.index');
+
+    // Production status — gated to a single owner account inside the component.
+    Route::livewire('system-status', SystemHealth::class)->name('system.health');
 });

@@ -1,13 +1,20 @@
 <?php
 
 use App\Jobs\Email\DispatchEmailSyncs;
+use App\Support\SystemStatus;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+// Heartbeat so the system-status page can tell whether the scheduler is alive.
+Schedule::call(fn () => Cache::put(SystemStatus::SCHEDULER_HEARTBEAT_KEY, now()->toIso8601String()))
+    ->everyMinute()
+    ->name('scheduler-heartbeat');
 
 // Poll every active email account's mailbox. Requires a running scheduler
 // (`php artisan schedule:work` locally, or a `* * * * * php artisan schedule:run` cron).
