@@ -228,17 +228,3 @@ it('toggles an emoji reaction on a message', function () {
     $component->call('toggleReaction', $message->id, '👍');
     expect(MessageReaction::where('message_id', $message->id)->exists())->toBeFalse();
 });
-
-it('shows a read receipt on my latest DM message once the other person has read it', function () {
-    $other = User::factory()->create();
-    $conversation = Conversation::factory()->create(['type' => ConversationType::Dm]);
-    $conversation->users()->sync([$this->user->id, $other->id]);
-    $conversation->postMessage($this->user, 'Hallo daar');
-
-    // Before the other reads it: shown as sent.
-    openChatWith($conversation)->assertSee('Verzonden');
-
-    // After the other reads it: shown as read.
-    $conversation->markReadFor($other);
-    openChatWith($conversation)->assertSee('Gelezen');
-});

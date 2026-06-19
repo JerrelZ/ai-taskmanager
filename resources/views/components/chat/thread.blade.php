@@ -12,10 +12,6 @@
 @php
     // Quick-reaction palette shown on hover.
     $quickReactions = ['👍', '❤️', '😂', '🎉', '😮', '🙏'];
-
-    // The newest message I sent — the only one that carries a read receipt.
-    $lastMineId = $messages->where('user_id', $me->id)->last()?->id;
-    $isDm = $conversation?->type === \App\Enums\ConversationType::Dm;
 @endphp
 
 <div class="flex min-h-0 flex-1 flex-col">
@@ -197,18 +193,6 @@
                                 <span class="tabular-nums">{{ $reaction['count'] }}</span>
                             </button>
                         @endforeach
-                    </div>
-                @endif
-
-                @if ($isDm && $message->id === $lastMineId)
-                    @php
-                        $other = $conversation->users->firstWhere('id', '!=', $me->id);
-                        $seenAt = $other?->pivot?->last_read_at;
-                        $seen = $seenAt !== null && \Illuminate\Support\Carbon::parse($seenAt)->gte($message->created_at);
-                    @endphp
-                    <div class="mt-0.5 flex items-center gap-0.5 text-[10px] text-zinc-400">
-                        <flux:icon :name="$seen ? 'check-circle' : 'check'" variant="micro" class="size-3" />
-                        {{ $seen ? __('Gelezen') : __('Verzonden') }}
                     </div>
                 @endif
                 </div>
