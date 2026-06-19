@@ -34,6 +34,13 @@
                     <div wire:key="new-att-{{ $i }}" class="group relative">
                         @if (str_starts_with((string) $file->getMimeType(), 'image/'))
                             <img src="{{ $file->temporaryUrl() }}" alt="" class="size-16 rounded-lg object-cover" />
+                        @elseif (str_starts_with((string) $file->getMimeType(), 'video/'))
+                            <div class="relative size-16 overflow-hidden rounded-lg bg-zinc-900">
+                                <video src="{{ $file->temporaryUrl() }}#t=0.1" preload="metadata" muted playsinline class="size-full object-cover"></video>
+                                <span class="absolute inset-0 flex items-center justify-center">
+                                    <flux:icon name="play" variant="solid" class="size-5 text-white/90" />
+                                </span>
+                            </div>
                         @else
                             <div class="flex size-16 flex-col items-center justify-center gap-1 rounded-lg border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-800">
                                 <flux:icon name="document" class="size-5 text-zinc-400" />

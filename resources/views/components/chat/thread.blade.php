@@ -18,12 +18,7 @@
     $isDm = $conversation?->type === \App\Enums\ConversationType::Dm;
 @endphp
 
-<div
-    class="flex min-h-0 flex-1 flex-col"
-    x-data="{ lightbox: null }"
-    x-on:lightbox-open="lightbox = $event.detail"
-    x-on:keydown.escape.window="lightbox = null"
->
+<div class="flex min-h-0 flex-1 flex-col">
     <div
         x-data="chatThread({{ $conversation?->id ?? 'null' }})"
         x-on:message-sent.window="scrollToBottom()"
@@ -59,8 +54,8 @@
                     || $prev->user_id !== $message->user_id
                     || $message->created_at->diffInMinutes($prev->created_at) >= 5;
                 $showName = ! $mine && $showSenderNames && $startsGroup;
-                $images = $message->attachments->filter->isImage();
-                $files = $message->attachments->reject->isImage();
+                $media = $message->attachments->filter(fn ($attachment) => $attachment->isPreviewable());
+                $files = $message->attachments->reject(fn ($attachment) => $attachment->isPreviewable());
                 $prev = $message;
 
                 $dayLabel = match (true) {
@@ -112,24 +107,37 @@
                         </div>
                     @endif
 
-                    @if ($images->isNotEmpty())
+                    @if ($media->isNotEmpty())
                         <div @class([
                             'mb-1 grid gap-1',
-                            'grid-cols-2' => $images->count() > 1,
-                            'grid-cols-1' => $images->count() === 1,
+                            'grid-cols-2' => $media->count() > 1,
+                            'grid-cols-1' => $media->count() === 1,
                         ])>
-                            @foreach ($images as $image)
-                                <img
-                                    src="{{ route('attachments.show', $image) }}"
-                                    alt="{{ $image->filename }}"
-                                    loading="lazy"
-                                    x-on:click="$dispatch('lightbox-open', '{{ route('attachments.show', $image) }}')"
+                            @foreach ($media as $item)
+                                <button
+                                    type="button"
+                                    x-on:click="$dispatch('attachment-open', {
+                                        url: '{{ route('attachments.show', $item) }}',
+                                        download: '{{ route('attachments.download', $item) }}',
+                                        type: '{{ $item->isVideo() ? 'video' : 'image' }}',
+                                    })"
                                     @class([
-                                        'w-full cursor-zoom-in rounded-lg object-cover',
-                                        'max-h-72' => $images->count() === 1,
-                                        'aspect-square' => $images->count() > 1,
+                                        'relative block w-full cursor-zoom-in overflow-hidden rounded-lg',
+                                        'max-h-72' => $media->count() === 1,
+                                        'aspect-square' => $media->count() > 1,
                                     ])
-                                />
+                                >
+                                    @if ($item->isVideo())
+                                        <video src="{{ route('attachments.show', $item) }}#t=0.1" preload="metadata" muted playsinline class="size-full {{ $media->count() === 1 ? 'max-h-72' : '' }} object-cover"></video>
+                                        <span class="absolute inset-0 flex items-center justify-center bg-black/20">
+                                            <span class="flex size-9 items-center justify-center rounded-full bg-black/50 text-white">
+                                                <flux:icon name="play" variant="solid" class="size-5" />
+                                            </span>
+                                        </span>
+                                    @else
+                                        <img src="{{ route('attachments.show', $item) }}" alt="{{ $item->filename }}" loading="lazy" class="w-full object-cover {{ $media->count() === 1 ? 'max-h-72' : 'aspect-square size-full' }}" />
+                                    @endif
+                                </button>
                             @endforeach
                         </div>
                     @endif
@@ -262,21 +270,5 @@
         @endif
     </div>
 
-    {{-- Image lightbox --}}
-    <template x-if="lightbox">
-        <div
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
-            x-on:click="lightbox = null"
-            x-transition.opacity
-        >
-            <button type="button" class="absolute end-4 top-4 flex size-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20" aria-label="{{ __('Sluiten') }}">
-                <flux:icon name="x-mark" class="size-6" />
-            </button>
-            <img :src="lightbox" alt="" class="max-h-full max-w-full rounded-lg object-contain shadow-2xl" x-on:click.stop />
-            <a :href="lightbox" download class="absolute bottom-4 end-4 flex items-center gap-1.5 rounded-full bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/20" x-on:click.stop>
-                <flux:icon name="arrow-down-tray" class="size-4" />
-                {{ __('Download') }}
-            </a>
-        </div>
-    </template>
+    <x-attachment-viewer />
 </div>
