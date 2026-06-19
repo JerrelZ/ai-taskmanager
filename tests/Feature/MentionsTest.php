@@ -22,3 +22,37 @@ test('it does not highlight unknown names', function () {
 
     expect($html)->not->toContain('text-brand-600');
 });
+
+test('it extracts a mentioned user by full name', function () {
+    $sanne = User::factory()->create(['name' => 'Sanne de Vries']);
+
+    $mentioned = Mentions::extractUsers('Hoi @Sanne de Vries, kijk hier even naar', User::all());
+
+    expect($mentioned->pluck('id')->all())->toBe([$sanne->id]);
+});
+
+test('it extracts a mentioned user by unambiguous first name', function () {
+    $sanne = User::factory()->create(['name' => 'Sanne de Vries']);
+    User::factory()->create(['name' => 'Bram Jansen']);
+
+    $mentioned = Mentions::extractUsers('Hoi @Sanne!', User::all());
+
+    expect($mentioned->pluck('id')->all())->toBe([$sanne->id]);
+});
+
+test('it ignores an ambiguous first name', function () {
+    User::factory()->create(['name' => 'Sanne de Vries']);
+    User::factory()->create(['name' => 'Sanne Bakker']);
+
+    $mentioned = Mentions::extractUsers('Hoi @Sanne!', User::all());
+
+    expect($mentioned)->toBeEmpty();
+});
+
+test('it ignores unknown mentions and dedupes repeated ones', function () {
+    $sanne = User::factory()->create(['name' => 'Sanne de Vries']);
+
+    $mentioned = Mentions::extractUsers('@Sanne de Vries en @Sanne de Vries, niet @Niemand', User::all());
+
+    expect($mentioned->pluck('id')->all())->toBe([$sanne->id]);
+});

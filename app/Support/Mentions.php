@@ -54,6 +54,61 @@ class Mentions
     }
 
     /**
+     * Extract the users mentioned with @-syntax in the given text, matched
+     * against the supplied candidates by full name or — when unambiguous —
+     * first name. Longest names match first so "@Sanne de Vries" beats "@Sanne",
+     * and unknown names are ignored. Returns each matched user once.
+     *
+     * @param  Collection<int, User>  $candidates
+     * @return Collection<int, User>
+     */
+    public static function extractUsers(string $text, Collection $candidates): Collection
+    {
+        if (trim($text) === '' || $candidates->isEmpty()) {
+            return collect();
+        }
+
+        // Only treat a first name as a mention target when exactly one candidate
+        // carries it, so an ambiguous "@Sanne" never pings the wrong person.
+        $firstNameCounts = $candidates
+            ->map(fn (User $user) => mb_strtolower(trim(Str::before($user->name, ' '))))
+            ->countBy()
+            ->all();
+
+        /** @var array<string, User> $byName */
+        $byName = [];
+
+        foreach ($candidates as $user) {
+            $full = mb_strtolower(trim($user->name));
+
+            if ($full !== '') {
+                $byName[$full] = $user;
+            }
+
+            $first = mb_strtolower(trim(Str::before($user->name, ' ')));
+
+            if ($first !== '' && ($firstNameCounts[$first] ?? 0) === 1) {
+                $byName[$first] ??= $user;
+            }
+        }
+
+        $names = collect(array_keys($byName))
+            ->sortByDesc(fn (string $name) => strlen($name))
+            ->map(fn (string $name) => preg_quote($name, '/'))
+            ->values();
+
+        $pattern = '/(?<![\w@])@('.$names->implode('|').')(?![\w])/i';
+
+        preg_match_all($pattern, $text, $matches);
+
+        return collect($matches[1] ?? [])
+            ->map(fn (string $name) => $byName[mb_strtolower($name)] ?? null)
+            ->filter()
+            ->unique(fn (User $user) => $user->id)
+            ->values();
+    }
+
+    /**
      * Replace #123 references with a chip linking to that project's task. The
      * lookbehind keeps us out of URL fragments and HTML entities; unknown
      * numbers are left as plain text.

@@ -2,11 +2,34 @@
     "name": "Tasks",
     "short_name": "Tasks",
     "description": "Command center voor je projecten, tickets en berichten.",
+    "lang": "nl",
+    "dir": "ltr",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",
     "background_color": "#f8f6f1",
     "theme_color": "#7c3aed",
+    "categories": ["productivity", "business"],
+    "shortcuts": [
+        {
+            "name": "Alle tickets",
+            "short_name": "Tickets",
+            "url": "/tickets",
+            "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+        },
+        {
+            "name": "Berichten",
+            "short_name": "Berichten",
+            "url": "/messages",
+            "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+        },
+        {
+            "name": "Projecten",
+            "short_name": "Projecten",
+            "url": "/projects",
+            "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+        }
+    ],
     "icons": [
         {
             "src": "/favicon.svg",

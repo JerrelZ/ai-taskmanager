@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\PushSubscriptionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -14,6 +15,12 @@ Route::get('/', function (Request $request) {
 // There is no standalone dashboard; the app opens on the tickets/messages
 // home. Kept as a named redirect so existing links resolve.
 Route::redirect('dashboard', '/')->name('dashboard');
+
+// Accepting a team invitation: a guest sets their own name + password.
+Route::middleware('guest')->group(function () {
+    Route::get('invitations/{token}', [InvitationController::class, 'show'])->name('invitations.accept');
+    Route::post('invitations/{token}', [InvitationController::class, 'store'])->name('invitations.store');
+});
 
 Route::middleware('auth')->group(function () {
     Route::get('attachments/{attachment}/download', [AttachmentController::class, 'download'])

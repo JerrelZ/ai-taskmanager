@@ -308,12 +308,18 @@
                         </form>
                     </div>
 
-                    {{-- Activity log (below comments) --}}
+                    {{-- Activity log: collapsed by default so the history stays
+                         available but never crowds the comments above it. --}}
                     @if ($task->activities->isNotEmpty())
                         <flux:separator />
-                        <div class="space-y-3">
-                            <flux:subheading>{{ __('Activiteit') }}</flux:subheading>
-                            <div class="space-y-2">
+                        <div x-data="{ open: false }" class="space-y-3">
+                            <button type="button" x-on:click="open = ! open"
+                                class="flex items-center gap-1.5 text-xs font-medium text-zinc-400 transition hover:text-zinc-600 dark:hover:text-zinc-300">
+                                <flux:icon name="chevron-right" variant="micro" x-bind:class="open && 'rotate-90'" class="transition" />
+                                {{ __('Activiteit') }}
+                                <span class="text-zinc-300 dark:text-zinc-600">{{ $task->activities->count() }}</span>
+                            </button>
+                            <div x-show="open" x-cloak x-transition.opacity class="space-y-2">
                                 @foreach ($task->activities as $activity)
                                     <div wire:key="activity-{{ $activity->id }}" class="flex items-center gap-3 ps-1 text-xs text-zinc-400">
                                         <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">

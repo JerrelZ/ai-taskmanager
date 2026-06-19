@@ -8,11 +8,14 @@ use App\Livewire\Concerns\CopiesTaskPrompt;
 use App\Models\Label;
 use App\Models\Task;
 use App\Models\User;
+use App\Notifications\MentionNotification;
 use App\Services\AttachmentService;
+use App\Support\Mentions;
 use App\Support\TaskActivity;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -359,9 +362,40 @@ class TaskDetail extends Component
 
         TaskActivity::log($task, 'comment', ['comment_id' => $comment->id]);
 
+        $this->notifyMentionedUsers($task, $body);
+
         $this->newComment = '';
         unset($this->task);
         $this->dispatch('task-saved');
+    }
+
+    /**
+     * Notify users @mentioned in a comment. Only people who can see the project
+     * and who opted into message notifications are pinged, so a mention follows
+     * the same preferences as a chat message.
+     */
+    private function notifyMentionedUsers(Task $task, string $body): void
+    {
+        $candidates = $this->users->reject(fn (User $user) => $user->id === Auth::id());
+
+        $mentioned = Mentions::extractUsers($body, $candidates)
+            ->filter(fn (User $user) => $user->wantsRealtimeMessageNotifications()
+                && $task->project->isVisibleTo($user));
+
+        if ($mentioned->isEmpty()) {
+            return;
+        }
+
+        $title = __(':sender noemde je in :task', [
+            'sender' => Auth::user()->name,
+            'task' => $task->identifier(),
+        ]);
+        $url = route('projects.board', ['project' => $task->project_id, 'openTask' => $task->id]);
+        $preview = Str::limit($body, 120);
+
+        foreach ($mentioned as $user) {
+            $user->notify(new MentionNotification($title, $preview, $url, 'task-'.$task->id));
+        }
     }
 
     public function markReviewed(): void

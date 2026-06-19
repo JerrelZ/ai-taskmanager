@@ -49,6 +49,80 @@
         </div>
     </div>
 
+    {{-- Bulk action bar: appears when one or more tickets are selected. --}}
+    @if (auth()->user()->isTeam() && count($selectedTickets) > 0)
+        <div class="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-brand-50/60 px-4 py-2.5 lg:px-6 dark:border-zinc-700 dark:bg-brand-950/30">
+            <span class="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                {{ trans_choice('{1} :count ticket geselecteerd|[2,*] :count tickets geselecteerd', count($selectedTickets), ['count' => count($selectedTickets)]) }}
+            </span>
+
+            <flux:button wire:click="toggleSelectAll" size="sm" variant="ghost">
+                {{ count($selectedTickets) === $this->tickets->count() ? __('Deselecteer alles') : __('Selecteer alles') }}
+            </flux:button>
+
+            <span class="flex-1"></span>
+
+            {{-- Status --}}
+            <flux:dropdown position="bottom" align="end">
+                <flux:button size="sm" variant="subtle" icon:trailing="chevron-down">{{ __('Status') }}</flux:button>
+                <flux:menu>
+                    @foreach (\App\Enums\TaskStatus::cases() as $statusOption)
+                        <flux:menu.item wire:click="bulkSetStatus('{{ $statusOption->value }}')">{{ $statusOption->label() }}</flux:menu.item>
+                    @endforeach
+                </flux:menu>
+            </flux:dropdown>
+
+            {{-- Priority --}}
+            <flux:dropdown position="bottom" align="end">
+                <flux:button size="sm" variant="subtle" icon:trailing="chevron-down">{{ __('Prioriteit') }}</flux:button>
+                <flux:menu>
+                    @foreach ($this->priorities() as $priorityOption)
+                        <flux:menu.item wire:click="bulkSetPriority('{{ $priorityOption->value }}')">
+                            <span class="flex items-center gap-2">
+                                <flux:icon :name="$priorityOption->icon()" variant="micro" class="text-{{ $priorityOption->color() }}-500" />
+                                {{ $priorityOption->label() }}
+                            </span>
+                        </flux:menu.item>
+                    @endforeach
+                </flux:menu>
+            </flux:dropdown>
+
+            {{-- Assignee --}}
+            <flux:dropdown position="bottom" align="end">
+                <flux:button size="sm" variant="subtle" icon:trailing="chevron-down">{{ __('Persoon') }}</flux:button>
+                <flux:menu class="max-h-72 overflow-y-auto">
+                    <flux:menu.item wire:click="bulkSetAssignee(null)">{{ __('Niemand') }}</flux:menu.item>
+                    @foreach ($this->users as $user)
+                        <flux:menu.item wire:click="bulkSetAssignee({{ $user->id }})">{{ $user->name }}</flux:menu.item>
+                    @endforeach
+                </flux:menu>
+            </flux:dropdown>
+
+            {{-- Label --}}
+            @if ($this->labels->isNotEmpty())
+                <flux:dropdown position="bottom" align="end">
+                    <flux:button size="sm" variant="subtle" icon:trailing="chevron-down">{{ __('Label') }}</flux:button>
+                    <flux:menu class="max-h-72 overflow-y-auto">
+                        @foreach ($this->labels as $label)
+                            <flux:menu.item wire:click="bulkAddLabel({{ $label->id }})">
+                                <span class="flex items-center gap-2">
+                                    <span class="size-2 rounded-full bg-{{ $label->color }}-500"></span>
+                                    {{ $label->name }}
+                                </span>
+                            </flux:menu.item>
+                        @endforeach
+                    </flux:menu>
+                </flux:dropdown>
+            @endif
+
+            <flux:button wire:click="bulkMarkReviewed" size="sm" variant="subtle" icon="check">{{ __('Bijgewerkt') }}</flux:button>
+
+            <flux:button wire:click="bulkDelete" wire:confirm="{{ __('Geselecteerde tickets verwijderen?') }}" size="sm" variant="danger" icon="trash">{{ __('Verwijderen') }}</flux:button>
+
+            <flux:button wire:click="clearSelection" size="sm" variant="ghost" icon="x-mark">{{ __('Deselecteer') }}</flux:button>
+        </div>
+    @endif
+
     <div class="flex-1 overflow-y-auto">
         {{-- "Nu" block --}}
         @if ($this->nowTask)

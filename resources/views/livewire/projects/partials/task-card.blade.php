@@ -53,15 +53,9 @@
     <div class="mt-3 flex items-center gap-3 text-zinc-400">
         @include('livewire.partials.priority-picker', ['task' => $task])
 
-        @if ($task->due_date)
-            <span @class([
-                'flex items-center gap-1 text-xs',
-                'text-red-500' => $task->due_date->isPast() && ! $task->isComplete(),
-            ])>
-                <flux:icon name="calendar" variant="micro" />
-                {{ $task->due_date->translatedFormat('j M') }}
-            </span>
-        @endif
+        @include('livewire.partials.due-picker', ['task' => $task])
+
+        @include('livewire.partials.label-picker', ['task' => $task])
 
         @if ($progress['total'] > 0)
             <span class="flex items-center gap-1 text-xs">
@@ -79,10 +73,6 @@
 
         <span class="flex-1"></span>
 
-        @if ($task->assignee)
-            <flux:tooltip :content="$task->assignee->name">
-                <flux:avatar size="xs" circle :name="$task->assignee->name" :initials="$task->assignee->initials()" />
-            </flux:tooltip>
-        @endif
+        @include('livewire.partials.assignee-picker', ['task' => $task])
     </div>
 </div>

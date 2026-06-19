@@ -2,6 +2,7 @@
     $progress = $task->subtaskProgress();
     $stale = $task->isStale();
     $touched = $task->lastTouchedAt();
+    $isTeam = auth()->user()?->isTeam();
 @endphp
 <div
     wire:key="ticket-{{ $task->id }}"
@@ -9,8 +10,16 @@
     @class([
         'group flex items-center gap-3 border-s-4 bg-white px-3 py-2.5 transition hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800/60',
         'border-'.$task->project->color.'-500',
+        'bg-brand-50/60 dark:bg-brand-950/30' => in_array($task->id, $selectedTickets),
     ])
 >
+    {{-- Bulk select (team only) --}}
+    @if ($isTeam)
+        <div wire:sort:ignore class="shrink-0">
+            <flux:checkbox wire:model.live="selectedTickets" value="{{ $task->id }}" x-on:click.stop />
+        </div>
+    @endif
+
     {{-- Drag handle --}}
     <div wire:sort:handle class="hidden cursor-grab text-zinc-300 opacity-0 transition group-hover:opacity-100 sm:block dark:text-zinc-600" title="{{ __('Sleep om prioriteit te bepalen') }}">
         <flux:icon name="bars-2" variant="micro" />
@@ -18,6 +27,11 @@
 
     {{-- Priority (click to change) --}}
     @include('livewire.partials.priority-picker', ['task' => $task])
+
+    {{-- Status (click to change) --}}
+    <div class="hidden shrink-0 sm:block">
+        @include('livewire.partials.status-picker', ['task' => $task])
+    </div>
 
     {{-- Title + project --}}
     <button type="button" wire:click="openTask({{ $task->id }})" class="flex min-w-0 flex-1 flex-col items-start text-start">
@@ -49,23 +63,19 @@
         @endif
     </div>
 
-    {{-- Due --}}
-    @if ($task->due_date)
-        <span @class([
-            'hidden shrink-0 items-center gap-1 text-xs text-zinc-400 sm:flex',
-            '!text-red-500' => $task->due_date->isPast() && ! $task->isComplete(),
-        ])>
-            <flux:icon name="calendar" variant="micro" />{{ $task->due_date->translatedFormat('j M') }}
-        </span>
-    @endif
+    {{-- Labels (click to change) --}}
+    <div class="hidden shrink-0 sm:block">
+        @include('livewire.partials.label-picker', ['task' => $task])
+    </div>
 
-    {{-- Assignee --}}
-    <div class="w-6 shrink-0">
-        @if ($task->assignee)
-            <flux:tooltip :content="$task->assignee->name">
-                <flux:avatar size="xs" circle :name="$task->assignee->name" :initials="$task->assignee->initials()" />
-            </flux:tooltip>
-        @endif
+    {{-- Due (click to change) --}}
+    <div class="hidden shrink-0 sm:block">
+        @include('livewire.partials.due-picker', ['task' => $task])
+    </div>
+
+    {{-- Assignee (click to change) --}}
+    <div class="shrink-0">
+        @include('livewire.partials.assignee-picker', ['task' => $task])
     </div>
 
     {{-- Actions --}}
