@@ -26,3 +26,4 @@ yarn-error.log
 
 # Local working data that may contain secrets — keep out of the repo.
 /blogmatch-tasks.csv
+/database/data/blogmatch-tasks.csv
