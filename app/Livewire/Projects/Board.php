@@ -289,6 +289,24 @@ class Board extends Component
         unset($this->tasks, $this->columns);
     }
 
+    /**
+     * Change a task's priority from the inline picker on a card or row.
+     */
+    public function setPriority(int $id, string $priority): void
+    {
+        $task = $this->project->rootTasks()->findOrFail($id);
+        $newPriority = TaskPriority::from($priority);
+
+        if ($task->priority === $newPriority) {
+            return;
+        }
+
+        TaskActivity::log($task, 'priority', ['from' => $task->priority->label(), 'to' => $newPriority->label()]);
+        $task->update(['priority' => $newPriority]);
+
+        unset($this->tasks, $this->columns);
+    }
+
     public function createTask(string $status): void
     {
         $title = trim($this->newTaskTitle[$status] ?? '');

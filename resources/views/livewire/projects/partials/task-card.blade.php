@@ -51,11 +51,7 @@
     </div>
 
     <div class="mt-3 flex items-center gap-3 text-zinc-400">
-        @if ($task->priority !== \App\Enums\TaskPriority::None)
-            <flux:tooltip :content="$task->priority->label()">
-                <flux:icon :name="$task->priority->icon()" variant="micro" class="text-{{ $task->priority->color() }}-500" />
-            </flux:tooltip>
-        @endif
+        @include('livewire.partials.priority-picker', ['task' => $task])
 
         @if ($task->due_date)
             <span @class([

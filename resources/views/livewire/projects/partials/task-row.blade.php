@@ -11,13 +11,7 @@
         <flux:icon name="bars-3" variant="micro" />
     </button>
 
-    @if ($task->priority !== \App\Enums\TaskPriority::None)
-        <flux:tooltip :content="$task->priority->label()">
-            <flux:icon :name="$task->priority->icon()" variant="micro" class="shrink-0 text-{{ $task->priority->color() }}-500" />
-        </flux:tooltip>
-    @else
-        <span class="w-3.5 shrink-0"></span>
-    @endif
+    @include('livewire.partials.priority-picker', ['task' => $task])
 
     <span class="shrink-0 font-mono text-[0.7rem] tracking-tight text-zinc-400">{{ $task->identifier() }}</span>
 

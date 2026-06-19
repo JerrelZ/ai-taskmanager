@@ -1,10 +1,13 @@
 <?php
 
+use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Livewire\Tickets\Index;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\Workspace;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -76,6 +79,29 @@ test('a filter can limit tickets by project', function () {
         ->set('projectFilter', $this->project->id)
         ->assertSee('Mijn project ticket')
         ->assertDontSee('Ander project ticket');
+});
+
+test('setting a priority from the tickets list updates it and logs an activity', function () {
+    $task = Task::factory()->for($this->project)->status(TaskStatus::Todo)->priority(TaskPriority::None)->create();
+
+    Livewire::test(Index::class)
+        ->call('setPriority', $task->id, TaskPriority::Urgent->value);
+
+    $task->refresh();
+
+    expect($task->priority)->toBe(TaskPriority::Urgent)
+        ->and($task->activities()->where('type', 'priority')->exists())->toBeTrue();
+});
+
+test('a ticket outside the workspace cannot have its priority changed', function () {
+    $otherWorkspace = Workspace::factory()->create();
+    $otherProject = Project::factory()->create(['workspace_id' => $otherWorkspace->id]);
+    $task = Task::factory()->for($otherProject)->status(TaskStatus::Todo)->priority(TaskPriority::None)->create();
+
+    expect(fn () => Livewire::test(Index::class)->call('setPriority', $task->id, TaskPriority::Urgent->value))
+        ->toThrow(ModelNotFoundException::class);
+
+    expect($task->refresh()->priority)->toBe(TaskPriority::None);
 });
 
 test('marking a ticket reviewed updates reviewed_at', function () {

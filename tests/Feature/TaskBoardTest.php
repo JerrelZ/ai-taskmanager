@@ -119,6 +119,18 @@ test('the priority filter limits visible tasks', function () {
         ->assertDontSee('Lage task');
 });
 
+test('setting a priority from the board updates it and logs an activity', function () {
+    $task = Task::factory()->for($this->project)->status(TaskStatus::Todo)->priority(TaskPriority::None)->create();
+
+    Livewire::test(Board::class, ['project' => $this->project])
+        ->call('setPriority', $task->id, TaskPriority::High->value);
+
+    $task->refresh();
+
+    expect($task->priority)->toBe(TaskPriority::High)
+        ->and($task->activities()->where('type', 'priority')->exists())->toBeTrue();
+});
+
 test('only root tasks appear on the board, not subtasks', function () {
     $parent = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Parent task']);
     Task::factory()->subtaskOf($parent)->create(['title' => 'Subtask hidden', 'status' => TaskStatus::Todo]);

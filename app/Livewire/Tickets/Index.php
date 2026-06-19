@@ -212,6 +212,27 @@ class Index extends Component
         Flux::toast(text: __('Gemarkeerd als bijgewerkt.'));
     }
 
+    /**
+     * Change a ticket's priority from the inline picker, scoped to the user's
+     * workspace so a forged id can't touch another tenant.
+     */
+    public function setPriority(int $id, string $priority): void
+    {
+        $task = Task::query()
+            ->whereHas('project', fn ($q) => $q->visibleTo(Auth::user()))
+            ->findOrFail($id);
+        $newPriority = TaskPriority::from($priority);
+
+        if ($task->priority === $newPriority) {
+            return;
+        }
+
+        TaskActivity::log($task, 'priority', ['from' => $task->priority->label(), 'to' => $newPriority->label()]);
+        $task->update(['priority' => $newPriority]);
+
+        unset($this->tickets, $this->nowTask);
+    }
+
     public function openTask(int $taskId): void
     {
         $this->dispatch('open-task', taskId: $taskId);
