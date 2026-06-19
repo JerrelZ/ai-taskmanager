@@ -262,6 +262,40 @@ it('renders the thread with image and document attachments without errors', func
         ->assertSee('rapport.pdf');
 });
 
+it('previews image and video attachments but downloads documents in the task panel', function () {
+    $task = Task::factory()->create();
+    $service = app(AttachmentService::class);
+    $image = $service->storeUpload(UploadedFile::fake()->image('foto.png'), $task, $this->user);
+    $video = $service->storeUpload(UploadedFile::fake()->create('clip.mp4', 200, 'video/mp4'), $task, $this->user);
+    $pdf = $service->storeUpload(UploadedFile::fake()->create('rapport.pdf', 8, 'application/pdf'), $task, $this->user);
+
+    $component = Livewire::test(TaskDetail::class)->call('open', $task->id);
+
+    // Image and video open the in-app viewer.
+    $component->assertSeeHtml('attachment-open')
+        ->assertSeeHtml(route('attachments.show', $image))
+        ->assertSeeHtml(route('attachments.show', $video))
+        // The document is a plain download link, not a viewer trigger.
+        ->assertSeeHtml(route('attachments.download', $pdf))
+        ->assertSee('rapport.pdf');
+});
+
+it('serves a video attachment inline with range support', function () {
+    $task = Task::factory()->create();
+    $attachment = app(AttachmentService::class)->storeUpload(
+        UploadedFile::fake()->create('clip.mp4', 200, 'video/mp4'),
+        $task,
+        $this->user,
+    );
+
+    $response = $this->get(route('attachments.show', $attachment));
+
+    $response->assertOk();
+    expect($response->headers->get('content-disposition'))->toContain('inline');
+    // BinaryFileResponse advertises Range support so the browser can seek video.
+    expect($response->headers->get('accept-ranges'))->toBe('bytes');
+});
+
 it('streams an image attachment inline for a permitted user', function () {
     $conversation = Conversation::factory()->create();
     $conversation->users()->sync([$this->user->id]);

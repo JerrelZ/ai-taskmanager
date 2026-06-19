@@ -213,19 +213,7 @@
                     <div class="space-y-2">
                         <flux:subheading>{{ __('Bijlagen') }}</flux:subheading>
 
-                        @if ($task->attachments->isNotEmpty())
-                            <div class="space-y-1">
-                                @foreach ($task->attachments as $attachment)
-                                    <div wire:key="att-{{ $attachment->id }}" class="group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                                        <flux:icon :name="$attachment->isImage() ? 'photo' : 'paper-clip'" class="size-4 shrink-0 text-zinc-400" />
-                                        <a href="{{ route('attachments.download', $attachment) }}" class="flex-1 truncate text-sm text-zinc-700 hover:underline dark:text-zinc-200">{{ $attachment->filename }}</a>
-                                        <span class="text-xs text-zinc-400">{{ $attachment->humanSize() }}</span>
-                                        <flux:button wire:click="deleteAttachment({{ $attachment->id }})" variant="subtle" size="xs" icon="trash"
-                                            class="opacity-0 transition group-hover:opacity-100" :tooltip="__('Verwijderen')" />
-                                    </div>
-                                @endforeach
-                            </div>
-                        @endif
+                        <x-attachment-list :attachments="$task->attachments" delete-method="deleteAttachment" />
 
                         <form wire:submit="uploadAttachments" class="space-y-2"
                             x-data="{ dragging: false }"
@@ -420,5 +408,7 @@
                 </div>
             </div>
         </div>
+
+        <x-attachment-viewer />
     @endif
 </flux:modal>

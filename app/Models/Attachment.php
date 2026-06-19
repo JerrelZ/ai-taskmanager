@@ -60,6 +60,26 @@ class Attachment extends Model
         return str_starts_with((string) $this->mime_type, 'image/');
     }
 
+    public function isVideo(): bool
+    {
+        return str_starts_with((string) $this->mime_type, 'video/');
+    }
+
+    public function isPdf(): bool
+    {
+        return $this->mime_type === 'application/pdf'
+            || str_ends_with(strtolower($this->filename), '.pdf');
+    }
+
+    /**
+     * Whether this file opens in the in-app media viewer (modal) rather than
+     * downloading. Everything else (PDFs, documents, archives) downloads.
+     */
+    public function isPreviewable(): bool
+    {
+        return $this->isImage() || $this->isVideo();
+    }
+
     public function humanSize(): string
     {
         $bytes = $this->size;
