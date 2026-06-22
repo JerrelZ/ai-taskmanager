@@ -6,6 +6,7 @@ use App\Models\EmailAccount;
 use App\Models\EmailContactLink;
 use App\Models\EmailThread;
 use App\Models\Project;
+use App\Support\SensitiveData;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 
@@ -204,7 +205,7 @@ class EmailContextBuilder
      */
     private function summariseRow(array $row): string
     {
-        return collect($row)
+        return collect(SensitiveData::redactRow($row))
             ->take(6)
             ->map(fn ($value, $key): string => "{$key}={$value}")
             ->implode(', ');

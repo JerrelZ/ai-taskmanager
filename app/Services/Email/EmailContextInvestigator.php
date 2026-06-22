@@ -7,6 +7,7 @@ use App\Models\EmailContactLink;
 use App\Models\EmailMessage;
 use App\Models\EmailThread;
 use App\Support\EmailBody;
+use App\Support\SensitiveData;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -135,7 +136,10 @@ class EmailContextInvestigator
 
         try {
             $rows = $this->externalDb->select($account, $sql);
-            $clipped = array_map(fn ($row): array => (array) $row, array_slice($rows, 0, self::MAX_ROWS));
+            $clipped = array_map(
+                fn ($row): array => SensitiveData::redactRow((array) $row),
+                array_slice($rows, 0, self::MAX_ROWS),
+            );
 
             return (string) json_encode([
                 'row_count' => count($rows),

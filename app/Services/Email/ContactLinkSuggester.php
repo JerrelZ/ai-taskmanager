@@ -4,6 +4,7 @@ namespace App\Services\Email;
 
 use App\Models\EmailAccount;
 use App\Models\EmailContactLink;
+use App\Support\SensitiveData;
 
 /**
  * Suggests external-database rows that could be linked to an email sender, and
@@ -85,7 +86,7 @@ class ContactLinkSuggester
 
         return [
             'label' => $link->label ?: $this->labelFor($fields, $link->email),
-            'fields' => $fields,
+            'fields' => SensitiveData::redactRow($fields),
         ];
     }
 
@@ -150,7 +151,7 @@ class ContactLinkSuggester
      */
     private function preview(array $row): string
     {
-        return collect($row)
+        return collect(SensitiveData::redactRow($row))
             ->take(6)
             ->map(fn ($value, $key): string => "{$key}={$value}")
             ->implode(', ');
