@@ -6,7 +6,7 @@
 @endphp
 <div wire:key="ticket-{{ $task->id }}" wire:sort:item="{{ $task->id }}" @class([
     'group flex items-center gap-3 border-s-4 bg-white px-3 py-2.5 transition hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800/60',
-    'border-' . $task->project->color . '-500',
+    'border-zinc-200 dark:border-' . $task->project->color . '-500',
     'bg-brand-50/60 dark:bg-brand-950/30' => in_array(
         $task->id,
         $selectedTickets),

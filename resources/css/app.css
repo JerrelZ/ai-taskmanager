@@ -9,7 +9,7 @@
 /* Safelist dynamic project/label/priority/status colors used via interpolation. */
 @source inline("{bg,text,border}-{zinc,red,orange,amber,green,blue,indigo,purple,pink,brand}-{400,500,600}");
 @source inline("dark:{bg,text,border}-{zinc,red,orange,amber,green,blue,indigo,purple,pink,brand}-{400,500}");
-@source inline("border-s-{zinc,red,orange,amber,green,blue,indigo,purple,pink,brand}-500");
+@source inline("{,dark:}border-s-{zinc,red,orange,amber,green,blue,indigo,purple,pink,brand}-500");
 
 @custom-variant dark (&:where(.dark, .dark *));
 

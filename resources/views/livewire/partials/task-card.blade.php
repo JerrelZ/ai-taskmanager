@@ -30,7 +30,7 @@
 <div wire:key="task-card-{{ $task->id }}" wire:sort:item="{{ $task->id }}"
     wire:click="openTask({{ $task->id }})" @class([
         'group cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 shadow-sm transition hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600',
-        'border-s-4 border-s-' . $task->project->color . '-500' => $showProject,
+        'border-s-4 dark:border-s-' . $task->project->color . '-500' => $showProject,
         'ring-1 ring-brand-400' => $isSelected,
         'opacity-60' => $task->isComplete(),
     ])>
