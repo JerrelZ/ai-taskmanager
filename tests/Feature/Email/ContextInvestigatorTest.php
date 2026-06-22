@@ -1,16 +1,13 @@
 <?php
 
-use App\Livewire\Email\Inbox;
 use App\Models\EmailAccount;
 use App\Models\EmailFolder;
 use App\Models\EmailMessage;
 use App\Models\EmailThread;
-use App\Models\Project;
-use App\Models\User;
 use App\Services\Email\EmailContextInvestigator;
 use App\Services\Email\ExternalProjectDb;
 use Illuminate\Support\Facades\Http;
-use Livewire\Livewire;
+use Illuminate\Support\Facades\Storage;
 
 function investigatorThread(): EmailThread
 {
@@ -87,23 +84,6 @@ it('lets the AI investigate the database and returns structured entities', funct
     expect($result['markdown'])->toContain('`advertiser_additional_infos` #5');
 });
 
-it('appends the investigated context to the ticket description', function () {
-    fakeAgentRun();
-    $this->mock(ExternalProjectDb::class, function ($mock) {
-        $mock->shouldReceive('select')->andReturn([(object) ['Tables_in_revboost' => 'users']]);
-    });
-
-    $thread = investigatorThread();
-    $project = Project::find($thread->project_id);
-    $this->actingAs(User::factory()->create());
-
-    Livewire::test(Inbox::class, ['project' => $project])
-        ->call('selectThread', $thread->id)
-        ->call('openTicketModal')
-        ->call('enrichTicketContext')
-        ->assertSet('ticketDescription', fn ($value) => str_contains($value, '`users` #8'));
-});
-
 it('prefers the support API tools when an API is configured', function () {
     config()->set('services.anthropic.key', 'test-key');
 
@@ -152,7 +132,7 @@ it('prefers the support API tools when an API is configured', function () {
 
 it('includes a readable attachment as a content block for the AI', function () {
     config()->set('services.anthropic.key', 'test-key');
-    \Illuminate\Support\Facades\Storage::fake('local');
+    Storage::fake('local');
 
     Http::fake([
         'https://api.anthropic.com/*' => Http::response([
@@ -167,7 +147,7 @@ it('includes a readable attachment as a content block for the AI', function () {
     $thread = investigatorThread();
     $message = $thread->messages()->where('direction', EmailMessage::DIRECTION_INBOUND)->first();
 
-    \Illuminate\Support\Facades\Storage::disk('local')->put('att/logo.png', 'PNGDATA');
+    Storage::disk('local')->put('att/logo.png', 'PNGDATA');
     $message->attachments()->create([
         'disk' => 'local', 'path' => 'att/logo.png', 'filename' => 'logo.png',
         'mime_type' => 'image/png', 'size' => 7,

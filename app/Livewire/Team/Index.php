@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Team;
 
+use App\Concerns\PasswordValidationRules;
 use App\Enums\UserRole;
 use App\Mail\InvitationMail;
 use App\Models\Client;
@@ -19,11 +20,20 @@ use Livewire\Component;
 #[Title('Team')]
 class Index extends Component
 {
+    use PasswordValidationRules;
+
     public string $email = '';
 
     public string $role = 'member';
 
     public ?int $clientId = null;
+
+    // Admin "change password" form (targets another user in the workspace).
+    public ?int $passwordUserId = null;
+
+    public string $password = '';
+
+    public string $password_confirmation = '';
 
     public function mount(): void
     {
@@ -158,6 +168,64 @@ class Index extends Component
         unset($this->invitations);
 
         Flux::toast(text: __('Uitnodiging ingetrokken.'));
+    }
+
+    /**
+     * The user whose password is being changed, scoped to the workspace.
+     */
+    #[Computed]
+    public function passwordUser(): ?User
+    {
+        if ($this->passwordUserId === null) {
+            return null;
+        }
+
+        return User::query()
+            ->inWorkspace(Auth::user()->workspace_id)
+            ->find($this->passwordUserId);
+    }
+
+    /**
+     * Open the change-password modal for a user in the admin's workspace.
+     */
+    public function editPassword(int $userId): void
+    {
+        abort_unless(Auth::user()->isAdmin(), 403);
+
+        $user = User::query()
+            ->inWorkspace(Auth::user()->workspace_id)
+            ->findOrFail($userId);
+
+        $this->passwordUserId = $user->id;
+        $this->reset('password', 'password_confirmation');
+        $this->resetValidation();
+
+        unset($this->passwordUser);
+
+        Flux::modal('change-password')->show();
+    }
+
+    /**
+     * Set a new password for the selected user. The 'hashed' cast on the model
+     * hashes it automatically on save.
+     */
+    public function updateUserPassword(): void
+    {
+        abort_unless(Auth::user()->isAdmin(), 403);
+
+        $user = User::query()
+            ->inWorkspace(Auth::user()->workspace_id)
+            ->findOrFail($this->passwordUserId);
+
+        $validated = $this->validate(['password' => $this->passwordRules()]);
+
+        $user->update(['password' => $validated['password']]);
+
+        $this->reset('passwordUserId', 'password', 'password_confirmation');
+        unset($this->passwordUser);
+
+        Flux::modal('change-password')->close();
+        Flux::toast(variant: 'success', text: __('Wachtwoord bijgewerkt.'));
     }
 
     public function render(): View

@@ -19,9 +19,9 @@ use App\Models\User;
 use App\Notifications\InboxNotification;
 use App\Services\Email\ContactLinkSuggester;
 use App\Services\Email\EmailContextBuilder;
-use App\Services\Email\EmailContextInvestigator;
 use App\Services\Email\EmailReplyDrafter;
 use App\Services\Email\EmailSender;
+use App\Services\Email\EmailThreadSummarizer;
 use App\Services\Email\ExternalProjectApi;
 use App\Services\Email\ExternalProjectDb;
 use App\Services\Email\ImapClientFactory;
@@ -533,10 +533,10 @@ class Inbox extends Component
     }
 
     /**
-     * Let Claude investigate the external database and append the structured
-     * context (entities with ids) to the ticket description.
+     * Summarise the whole thread with Claude and append the summary plus the
+     * extracted action points to the ticket description.
      */
-    public function enrichTicketContext(EmailContextInvestigator $investigator): void
+    public function summariseThread(EmailThreadSummarizer $summarizer): void
     {
         abort_unless(Auth::user()->isTeam(), 403);
 
@@ -547,15 +547,11 @@ class Inbox extends Component
         }
 
         try {
-            $result = $investigator->investigate($thread);
-            $this->ticketDescription = trim($this->ticketDescription."\n\n".$result['markdown']);
-            Flux::toast(variant: 'success', text: trans_choice(
-                '{0}Geen records gevonden.|[1,*]:count record(s) gevonden.',
-                count($result['entities']),
-                ['count' => count($result['entities'])],
-            ));
+            $summary = $summarizer->summarise($thread);
+            $this->ticketDescription = trim($this->ticketDescription."\n\n".$summary);
+            Flux::toast(variant: 'success', text: __('Samenvatting toegevoegd.'));
         } catch (\Throwable $e) {
-            Flux::toast(variant: 'danger', text: __('Context ophalen mislukt: :error', ['error' => $e->getMessage()]));
+            Flux::toast(variant: 'danger', text: __('Samenvatten mislukt: :error', ['error' => $e->getMessage()]));
         }
     }
 

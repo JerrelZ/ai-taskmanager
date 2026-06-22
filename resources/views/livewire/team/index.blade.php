@@ -19,6 +19,7 @@
                 <flux:table.column>{{ __('E-mail') }}</flux:table.column>
                 <flux:table.column>{{ __('Rol') }}</flux:table.column>
                 <flux:table.column>{{ __('Klant') }}</flux:table.column>
+                <flux:table.column />
             </flux:table.columns>
             <flux:table.rows>
                 @foreach ($this->users as $user)
@@ -34,6 +35,11 @@
                             <flux:badge size="sm" :color="$user->isClient() ? 'amber' : ($user->isAdmin() ? 'brand' : 'zinc')">{{ $user->role->label() }}</flux:badge>
                         </flux:table.cell>
                         <flux:table.cell class="text-zinc-500">{{ $user->client?->name ?? '—' }}</flux:table.cell>
+                        <flux:table.cell>
+                            <div class="flex items-center justify-end">
+                                <flux:button wire:click="editPassword({{ $user->id }})" size="xs" variant="subtle" icon="key" :tooltip="__('Wachtwoord wijzigen')" />
+                            </div>
+                        </flux:table.cell>
                     </flux:table.row>
                 @endforeach
             </flux:table.rows>
@@ -102,6 +108,27 @@
                     <flux:button variant="ghost">{{ __('Annuleren') }}</flux:button>
                 </flux:modal.close>
                 <flux:button type="submit" variant="primary" icon="paper-airplane">{{ __('Uitnodiging versturen') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <flux:modal name="change-password" class="md:w-[28rem]">
+        <form wire:submit="updateUserPassword" class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Wachtwoord wijzigen') }}</flux:heading>
+                <flux:subheading>
+                    {{ __('Stel een nieuw wachtwoord in voor :name.', ['name' => $this->passwordUser?->name ?? '']) }}
+                </flux:subheading>
+            </div>
+
+            <flux:input wire:model="password" type="password" :label="__('Nieuw wachtwoord')" viewable autocomplete="new-password" />
+            <flux:input wire:model="password_confirmation" type="password" :label="__('Bevestig wachtwoord')" viewable autocomplete="new-password" />
+
+            <div class="flex justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Annuleren') }}</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary" icon="key">{{ __('Wachtwoord opslaan') }}</flux:button>
             </div>
         </form>
     </flux:modal>

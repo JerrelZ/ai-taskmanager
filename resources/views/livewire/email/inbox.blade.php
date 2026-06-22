@@ -530,16 +530,14 @@
                 <div>
                     <div class="mb-1 flex items-center justify-between">
                         <flux:label>{{ __('Omschrijving') }}</flux:label>
-                        @if ($this->account()?->external_db_dsn)
-                            <flux:button wire:click="enrichTicketContext" type="button" variant="subtle" size="xs" icon="sparkles"
-                                wire:loading.attr="disabled" wire:target="enrichTicketContext">
-                                <span wire:loading.remove wire:target="enrichTicketContext">{{ __('AI-context uit database') }}</span>
-                                <span wire:loading wire:target="enrichTicketContext">{{ __('Database onderzoeken...') }}</span>
-                            </flux:button>
-                        @endif
+                        <flux:button wire:click="summariseThread" type="button" variant="subtle" size="xs" icon="sparkles"
+                            wire:loading.attr="disabled" wire:target="summariseThread">
+                            <span wire:loading.remove wire:target="summariseThread">{{ __('Samenvatten met AI') }}</span>
+                            <span wire:loading wire:target="summariseThread">{{ __('Samenvatten...') }}</span>
+                        </flux:button>
                     </div>
                     <flux:textarea wire:model="ticketDescription" rows="8"
-                        wire:loading.attr="disabled" wire:target="enrichTicketContext" />
+                        wire:loading.attr="disabled" wire:target="summariseThread" />
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
