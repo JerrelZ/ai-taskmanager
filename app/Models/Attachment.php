@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
  * @property int $id
  * @property string $attachable_type
  * @property int $attachable_id
+ * @property int|null $comment_id
  * @property string $disk
  * @property string $path
  * @property string $filename
@@ -23,6 +24,7 @@ use Illuminate\Support\Facades\Storage;
 class Attachment extends Model
 {
     protected $fillable = [
+        'comment_id',
         'disk',
         'path',
         'filename',
@@ -53,6 +55,16 @@ class Attachment extends Model
     public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    /**
+     * The comment this file was posted in, when it was uploaded as part of a reply.
+     *
+     * @return BelongsTo<Comment, $this>
+     */
+    public function comment(): BelongsTo
+    {
+        return $this->belongsTo(Comment::class);
     }
 
     public function isImage(): bool

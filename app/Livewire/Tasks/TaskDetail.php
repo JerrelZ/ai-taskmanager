@@ -32,6 +32,9 @@ class TaskDetail extends Component
     /** @var array<int, TemporaryUploadedFile> */
     public array $newAttachments = [];
 
+    /** @var array<int, TemporaryUploadedFile> */
+    public array $newCommentAttachments = [];
+
     // Editable fields
     public string $title = '';
 
@@ -72,7 +75,7 @@ class TaskDetail extends Component
         $this->assigneeId = $task->assignee_id;
         $this->dueDate = $task->due_date?->format('Y-m-d');
         $this->selectedLabels = $task->labels()->pluck('labels.id')->all();
-        $this->reset('newSubtaskTitle', 'newComment', 'newLabelName');
+        $this->reset('newSubtaskTitle', 'newComment', 'newCommentAttachments', 'newLabelName');
         $this->resetValidation();
 
         Flux::modal('task-detail')->show();
@@ -92,7 +95,7 @@ class TaskDetail extends Component
         }
 
         $task = Task::query()
-            ->with(['project', 'subtasks.assignee', 'comments.user', 'activities.user', 'parent', 'attachments.uploader'])
+            ->with(['project', 'subtasks.assignee', 'comments.user', 'comments.attachments', 'activities.user', 'parent', 'attachments.uploader'])
             ->find($this->taskId);
 
         if ($task === null || ! $task->project?->isVisibleTo(Auth::user())) {
@@ -346,27 +349,46 @@ class TaskDetail extends Component
         $this->dispatch('task-saved');
     }
 
-    public function addComment(): void
+    public function addComment(AttachmentService $attachments): void
     {
         $task = $this->task;
         $body = trim($this->newComment);
 
-        if ($task === null || $body === '') {
+        // A reply needs either text or at least one file to be meaningful.
+        if ($task === null || ($body === '' && count($this->newCommentAttachments) === 0)) {
             return;
         }
+
+        $this->validate([
+            'newCommentAttachments' => ['array', 'max:10'],
+            'newCommentAttachments.*' => ['file', 'max:25600'], // 25 MB each
+        ]);
 
         $comment = $task->comments()->create([
             'user_id' => Auth::id(),
             'body' => $body,
         ]);
 
+        // Files posted in the reply stay attached to the task (so they appear
+        // among all of its attachments) while also pointing at this comment.
+        foreach ($this->newCommentAttachments as $file) {
+            $attachment = $attachments->storeUpload($file, $task, Auth::user());
+            $attachment->update(['comment_id' => $comment->id]);
+        }
+
         TaskActivity::log($task, 'comment', ['comment_id' => $comment->id]);
 
         $this->notifyMentionedUsers($task, $body);
 
-        $this->newComment = '';
+        $this->reset('newComment', 'newCommentAttachments');
         unset($this->task);
         $this->dispatch('task-saved');
+    }
+
+    public function removeNewCommentAttachment(int $index): void
+    {
+        unset($this->newCommentAttachments[$index]);
+        $this->newCommentAttachments = array_values($this->newCommentAttachments);
     }
 
     /**
