@@ -56,6 +56,11 @@ class FakeImapConnection implements ImapConnection
         return $this;
     }
 
+    public function listFolders(): array
+    {
+        return array_keys($this->folders);
+    }
+
     public function selectFolder(string $folder): int
     {
         $this->current = $folder;

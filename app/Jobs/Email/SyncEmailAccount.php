@@ -30,11 +30,13 @@ class SyncEmailAccount implements ShouldQueue
     public int $tries = 3;
 
     /**
-     * Folders to ingest. INBOX is required; others are best-effort (skipped if absent).
+     * Top-level folder roots never ingested: server-side wastebins and drafts
+     * hold nothing we want in the inbox. Matched case-insensitively against the
+     * first path segment, so e.g. "Trash.Subfolder" is excluded too.
      *
      * @var array<int, string>
      */
-    private const FOLDERS = ['INBOX', 'Sent'];
+    private const EXCLUDED_ROOTS = ['Trash', 'Junk', 'Drafts'];
 
     /**
      * How long the lock is held; longer than a realistic sync, released in finally.
@@ -70,7 +72,7 @@ class SyncEmailAccount implements ShouldQueue
             $connection = $factory->connect($account);
 
             try {
-                foreach (self::FOLDERS as $folderName) {
+                foreach ($this->foldersToSync($connection) as $folderName) {
                     $this->syncFolder($account, $connection, $store, $folderName);
                 }
 
@@ -81,6 +83,37 @@ class SyncEmailAccount implements ShouldQueue
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * Every server folder we ingest, excluded roots removed, with INBOX first so
+     * it acts as the required canary (its failure fails and retries the job).
+     *
+     * @return array<int, string>
+     */
+    private function foldersToSync(ImapConnection $connection): array
+    {
+        $folders = array_values(array_filter(
+            $connection->listFolders(),
+            fn (string $path): bool => ! $this->isExcluded($path),
+        ));
+
+        $rest = array_values(array_filter($folders, fn (string $path): bool => $path !== 'INBOX'));
+
+        return ['INBOX', ...$rest];
+    }
+
+    private function isExcluded(string $folderName): bool
+    {
+        return in_array(mb_strtolower($this->rootSegment($folderName)), array_map(mb_strtolower(...), self::EXCLUDED_ROOTS), true);
+    }
+
+    /**
+     * The first path segment, regardless of the server's hierarchy delimiter.
+     */
+    private function rootSegment(string $folderName): string
+    {
+        return preg_split('#[./]#', $folderName)[0] ?? $folderName;
     }
 
     private function syncFolder(EmailAccount $account, ImapConnection $connection, RawEmailStore $store, string $folderName): void
@@ -186,7 +219,7 @@ class SyncEmailAccount implements ShouldQueue
      */
     private function directionForFolder(string $folderName): string
     {
-        return $folderName === 'Sent'
+        return $this->rootSegment($folderName) === 'Sent'
             ? EmailMessage::DIRECTION_OUTBOUND
             : EmailMessage::DIRECTION_INBOUND;
     }

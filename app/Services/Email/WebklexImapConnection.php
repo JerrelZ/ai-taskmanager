@@ -19,6 +19,14 @@ class WebklexImapConnection implements ImapConnection
 
     public function __construct(private readonly Client $client) {}
 
+    public function listFolders(): array
+    {
+        // false = flat list of every folder, including nested ones (e.g. INBOX.Sub).
+        return $this->client->getFolders(false)
+            ->map(fn (Folder $folder): string => $folder->path)
+            ->all();
+    }
+
     public function selectFolder(string $folder): int
     {
         $this->folder = $this->client->getFolder($folder);

@@ -13,6 +13,13 @@ use Carbon\CarbonInterface;
 interface ImapConnection
 {
     /**
+     * Every mailbox folder path on the server (flat, including nested folders).
+     *
+     * @return array<int, string>
+     */
+    public function listFolders(): array;
+
+    /**
      * Open a folder in read-only (EXAMINE) mode and return its UIDVALIDITY.
      */
     public function selectFolder(string $folder): int;

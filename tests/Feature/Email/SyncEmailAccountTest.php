@@ -80,6 +80,32 @@ it('marks messages from the Sent folder as outbound', function () {
     expect($outbound->direction)->toBe(EmailMessage::DIRECTION_OUTBOUND);
 });
 
+it('syncs every folder except Trash, Junk and Drafts', function () {
+    Bus::fake([ParseEmailMessage::class]);
+
+    $account = EmailAccount::factory()->create();
+    $this->fakeImap->for($account)
+        ->seed('INBOX', 1, rawEmail('<a@example.com>'))
+        ->seed('INBOX.Afgehandeld', 1, rawEmail('<b@example.com>'))
+        ->seed('Verkopers.TIBA Commerce', 1, rawEmail('<c@example.com>'))
+        ->seed('Sent', 1, rawEmail('<d@example.com>'))
+        ->seed('Trash', 1, rawEmail('<e@example.com>'))
+        ->seed('Junk', 1, rawEmail('<f@example.com>'))
+        ->seed('Drafts', 1, rawEmail('<g@example.com>'));
+
+    runSync($account);
+
+    $synced = EmailFolder::where('email_account_id', $account->id)->pluck('name')->all();
+    expect($synced)->toContain('INBOX', 'INBOX.Afgehandeld', 'Verkopers.TIBA Commerce', 'Sent');
+    expect($synced)->not->toContain('Trash', 'Junk', 'Drafts');
+
+    // Received mail filed into a subfolder is still inbound; only Sent is outbound.
+    $filed = EmailMessage::whereHas('folder', fn ($q) => $q->where('name', 'Verkopers.TIBA Commerce'))->first();
+    $sent = EmailMessage::whereHas('folder', fn ($q) => $q->where('name', 'Sent'))->first();
+    expect($filed->direction)->toBe(EmailMessage::DIRECTION_INBOUND);
+    expect($sent->direction)->toBe(EmailMessage::DIRECTION_OUTBOUND);
+});
+
 it('is idempotent across repeated syncs', function () {
     Bus::fake([ParseEmailMessage::class]);
 
