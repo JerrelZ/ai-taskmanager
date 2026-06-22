@@ -31,6 +31,12 @@ return [
         'readiness_model' => env('ANTHROPIC_READINESS_MODEL', 'claude-haiku-4-5'),
     ],
 
+    'linear' => [
+        // Workspace slug used to build deep links back to imported Linear
+        // issues, e.g. https://linear.app/{workspace}/issue/REVBOOS-10.
+        'workspace' => env('LINEAR_WORKSPACE', 'blogmatcher'),
+    ],
+
     'email' => [
         // When true, replies are written to the Laravel log instead of being
         // sent over SMTP (and the IMAP "Sent" append is skipped). For testing.

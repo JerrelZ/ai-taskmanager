@@ -151,6 +151,20 @@ class Task extends Model
     }
 
     /**
+     * Deep link back to the original Linear issue this ticket was imported from,
+     * or null when it has no Linear origin. The slug is omitted because Linear
+     * redirects the bare identifier to the canonical URL.
+     */
+    public function linearUrl(): ?string
+    {
+        if (! $this->linear_id) {
+            return null;
+        }
+
+        return 'https://linear.app/'.config('services.linear.workspace').'/issue/'.$this->linear_id;
+    }
+
+    /**
      * The canonical, deterministic Claude Code prompt for this ticket. Single
      * source of truth (also used by headless runs), so what you copy matches
      * what a run executes.
