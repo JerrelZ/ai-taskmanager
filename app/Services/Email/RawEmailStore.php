@@ -28,6 +28,22 @@ class RawEmailStore
     }
 
     /**
+     * Persist a raw message received from a provider webhook (no IMAP folder/UID)
+     * and return its storage path. Keyed by the provider's own message id.
+     */
+    public function storeProvider(int $accountId, string $provider, string $providerEmailId, string $raw): string
+    {
+        $safeProvider = preg_replace('/[^A-Za-z0-9]+/', '_', $provider) ?: 'provider';
+        $safeId = preg_replace('/[^A-Za-z0-9._-]+/', '_', $providerEmailId) ?: 'message';
+
+        $path = "email/raw/{$accountId}/{$safeProvider}/{$safeId}.eml";
+
+        Storage::disk(self::DISK)->put($path, $raw);
+
+        return $path;
+    }
+
+    /**
      * Read a previously stored raw message.
      */
     public function get(string $path): string

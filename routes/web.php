@@ -3,8 +3,14 @@
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Controllers\Webhooks\ResendInboundController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+// Inbound email webhook (Resend). Unauthenticated; the request is verified by
+// its Svix signature inside the controller, and CSRF is excluded in bootstrap.
+Route::post('webhooks/resend/inbound', ResendInboundController::class)
+    ->name('webhooks.resend.inbound');
 
 Route::get('/', function (Request $request) {
     $isMobile = (bool) preg_match('/Mobile|iPhone|iPod|Android.+Mobile|Windows Phone/i', (string) $request->userAgent());

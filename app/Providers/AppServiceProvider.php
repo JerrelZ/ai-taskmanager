@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Services\Email\ImapClientFactory;
+use App\Services\Email\ResendWebhookVerifier;
 use App\Services\Email\WebklexImapClientFactory;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -18,6 +19,11 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(ImapClientFactory::class, WebklexImapClientFactory::class);
+
+        $this->app->singleton(
+            ResendWebhookVerifier::class,
+            fn () => new ResendWebhookVerifier(config('services.resend.webhook_secret')),
+        );
     }
 
     /**

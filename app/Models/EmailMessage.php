@@ -14,8 +14,10 @@ use Illuminate\Support\Carbon;
  * @property int $email_account_id
  * @property int $email_folder_id
  * @property int|null $email_thread_id
- * @property int $uid_validity
- * @property int $uid
+ * @property string|null $provider
+ * @property string|null $provider_email_id
+ * @property int|null $uid_validity
+ * @property int|null $uid
  * @property string|null $message_id
  * @property string|null $in_reply_to
  * @property string|null $references
@@ -53,6 +55,8 @@ class EmailMessage extends Model
 
     public const DIRECTION_OUTBOUND = 'outbound';
 
+    public const PROVIDER_RESEND = 'resend';
+
     /**
      * Max parse attempts before a message is marked parse_failed.
      */
@@ -62,6 +66,8 @@ class EmailMessage extends Model
         'email_account_id',
         'email_folder_id',
         'email_thread_id',
+        'provider',
+        'provider_email_id',
         'uid_validity',
         'uid',
         'message_id',
