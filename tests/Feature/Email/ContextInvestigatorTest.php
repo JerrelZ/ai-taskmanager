@@ -133,7 +133,7 @@ it('prefers the support API tools when an API is configured', function () {
 
     $account = EmailAccount::factory()->create([
         'external_db_dsn' => ['host' => '127.0.0.1', 'port' => 3306, 'database' => 'revboost', 'username' => 'r', 'password' => 'p'],
-        'external_api_base_url' => 'https://revboost.test',
+        'external_api_base_url' => 'https://revboost.test/api/internal/v1',
         'external_api_token' => 'tok',
     ]);
     $thread = EmailThread::factory()->create(['email_account_id' => $account->id, 'project_id' => $account->project_id]);

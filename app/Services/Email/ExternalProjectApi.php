@@ -9,9 +9,11 @@ use RuntimeException;
 
 /**
  * Thin read-only client for a project's external support API (e.g. Revboost's
- * /api/internal/v1). Endpoints return business-computed data — stable contracts
- * that survive schema changes — which the MCP tools and context builder prefer
- * over raw database queries when an API is configured.
+ * https://www.revboost.nl/api/internal/v1). The full base URL — including any
+ * path prefix — is configured per account, so endpoints are requested relative
+ * to it (e.g. "users"). Endpoints return business-computed data — stable
+ * contracts that survive schema changes — which the MCP tools and context
+ * builder prefer over raw database queries when an API is configured.
  */
 class ExternalProjectApi
 {
@@ -81,7 +83,7 @@ class ExternalProjectApi
 
     private function client(EmailAccount $account): PendingRequest
     {
-        return Http::baseUrl(rtrim((string) $account->external_api_base_url, '/').'/api/internal/v1/')
+        return Http::baseUrl(rtrim((string) $account->external_api_base_url, '/'))
             ->withToken((string) $account->external_api_token)
             ->acceptJson()
             ->timeout(20);

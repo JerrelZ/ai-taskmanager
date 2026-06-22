@@ -609,7 +609,8 @@
 
                 {{-- External support API --}}
                 <flux:separator :text="__('Support-API (optioneel)')" />
-                <flux:input wire:model="apiBaseUrl" :label="__('API-basis-URL')" placeholder="https://boltool.test" />
+                <flux:input wire:model="apiBaseUrl" :label="__('API-basis-URL')" placeholder="https://www.revboost.nl/api/internal/v1"
+                    :description="__('Volledige basis-URL inclusief pad. Endpoints worden hier relatief aan opgevraagd, bijv. /users.')" />
                 <flux:input wire:model="apiToken" type="password" :label="__('API-token')"
                     :description="$this->account()?->external_api_token ? __('Laat leeg om het huidige token te behouden.') : null" />
                 <flux:button wire:click="testExternalApi" type="button" variant="ghost" size="sm" icon="signal" class="self-start">

@@ -14,7 +14,7 @@ function apiAccount(string $key = 'REV'): EmailAccount
 
     return EmailAccount::factory()->create([
         'project_id' => $project->id,
-        'external_api_base_url' => 'https://revboost.test',
+        'external_api_base_url' => 'https://revboost.test/api/internal/v1',
         'external_api_token' => 'secret-token',
     ]);
 }
