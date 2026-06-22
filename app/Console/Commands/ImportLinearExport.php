@@ -18,6 +18,7 @@ use Illuminate\Support\Str;
     {file? : Path to the Linear CSV export}
     {--owner=jerrel@zendos.nl : Email of the workspace owner the import lands in}
     {--create-users : Create missing Creator/Assignee users and print their generated passwords}
+    {--relink : Backfill creator/assignee on already-imported tickets (matched by Linear id), creating missing users}
     {--no-attachments : Skip downloading ticket attachments}')]
 #[Description('Import a Linear CSV export into the owner\'s workspace: one client + project per team, with parent links and attachments. Non-destructive and idempotent per team.')]
 class ImportLinearExport extends Command
@@ -105,6 +106,18 @@ class ImportLinearExport extends Command
             $this->error('Geen rijen gevonden in de CSV.');
 
             return self::FAILURE;
+        }
+
+        // Relink mode: attribute already-imported tickets without re-importing.
+        // Used when the first import ran without --create-users.
+        if ($this->option('relink')) {
+            $createdUsers = $this->resolveUsersFromExport($rowsByTeam);
+            $linked = $this->relinkTasks($rowsByTeam);
+
+            $this->info("Gekoppeld: {$linked} ticket(s) bijgewerkt met creator/assignee.");
+            $this->reportCreatedUsers($createdUsers);
+
+            return self::SUCCESS;
         }
 
         $createdUsers = $this->option('create-users')
@@ -288,6 +301,41 @@ class ImportLinearExport extends Command
         foreach (array_chunk($records, 200) as $chunk) {
             DB::table('tasks')->insert($chunk);
         }
+    }
+
+    /**
+     * Backfill creator/assignee on already-imported tickets, matching each export
+     * row to its existing task by Linear id. Lets an import that first ran without
+     * --create-users be attributed afterwards. Only sets a column when its email
+     * resolved to a user, so unknown creators/assignees stay untouched. Returns
+     * how many tickets were updated.
+     *
+     * @param  array<string, list<array{number: int|null, linear_id: string|null, parent: int|null, creator: string, assignee: string, raw_description: string, attributes: array<string, mixed>}>>  $rowsByTeam
+     */
+    private function relinkTasks(array $rowsByTeam): int
+    {
+        $updated = 0;
+
+        foreach ($rowsByTeam as $rows) {
+            foreach ($rows as $row) {
+                if ($row['linear_id'] === null) {
+                    continue;
+                }
+
+                $attributes = array_filter([
+                    'created_by' => $this->userIdByEmail[$row['creator']] ?? null,
+                    'assignee_id' => $this->userIdByEmail[$row['assignee']] ?? null,
+                ], fn ($value): bool => $value !== null);
+
+                if ($attributes === []) {
+                    continue;
+                }
+
+                $updated += DB::table('tasks')->where('linear_id', $row['linear_id'])->update($attributes);
+            }
+        }
+
+        return $updated;
     }
 
     /**

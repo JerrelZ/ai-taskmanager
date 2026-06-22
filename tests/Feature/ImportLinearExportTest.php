@@ -182,6 +182,37 @@ it('does not regenerate passwords for users that already exist', function () {
         ->and(Task::first()->created_by)->toBe($existing->id);
 });
 
+it('relinks already-imported tickets and creates missing users without re-importing', function () {
+    $owner = importOwner();
+
+    $path = writeLinearCsv([
+        linearRow('REVBOOS-10', 'RevBoost', 'Werk', 'Backlog', 'Urgent', 'jerrel@zendos.nl', 'nieuw.collega@example.com'),
+        linearRow('REVBOOS-11', 'RevBoost', 'Meer werk', 'Todo', 'High', 'nieuw.collega@example.com', ''),
+    ]);
+
+    // First import without --create-users: tickets land unattributed.
+    $this->artisan('linear:import', ['file' => $path, '--no-attachments' => true])->assertSuccessful();
+    expect(Task::where('number', 10)->first()->created_by)->toBeNull()
+        ->and(User::count())->toBe(1);
+
+    // Relink: creates the missing user and attributes the existing tickets.
+    $this->artisan('linear:import', ['file' => $path, '--relink' => true])->assertSuccessful();
+
+    $colleague = User::firstWhere('email', 'nieuw.collega@example.com');
+    $first = Task::where('number', 10)->first();
+    $second = Task::where('number', 11)->first();
+
+    expect($colleague)->not->toBeNull()
+        ->and(User::count())->toBe(2)
+        ->and($first->created_by)->toBe($owner->id)
+        ->and($first->assignee_id)->toBe($colleague->id)
+        ->and($second->created_by)->toBe($colleague->id)
+        ->and($second->assignee_id)->toBeNull()
+        // No duplicate import: still one project and the original two tasks.
+        ->and(Task::count())->toBe(2)
+        ->and(Project::where('key', 'REV')->count())->toBe(1);
+});
+
 it('links subtasks to their parent and preserves timestamps and html', function () {
     importOwner();
 
