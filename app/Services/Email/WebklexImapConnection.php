@@ -17,19 +17,39 @@ class WebklexImapConnection implements ImapConnection
 {
     private ?Folder $folder = null;
 
+    /**
+     * Folders discovered by listFolders(), keyed by their full path. Reusing the
+     * exact Folder objects the server enumerated is the only reliable way to open
+     * nested folders: re-resolving a path string fails for hierarchy delimiters
+     * and IMAP modified-UTF7 names (e.g. "Verkopers.0 - Aanmeldingen &- Overige").
+     *
+     * @var array<string, Folder>
+     */
+    private array $foldersByPath = [];
+
     public function __construct(private readonly Client $client) {}
 
     public function listFolders(): array
     {
         // false = flat list of every folder, including nested ones (e.g. INBOX.Sub).
-        return $this->client->getFolders(false)
-            ->map(fn (Folder $folder): string => $folder->path)
-            ->all();
+        $this->foldersByPath = [];
+
+        foreach ($this->client->getFolders(false) as $folder) {
+            $this->foldersByPath[$folder->path] = $folder;
+        }
+
+        return array_keys($this->foldersByPath);
     }
 
     public function selectFolder(string $folder): int
     {
-        $this->folder = $this->client->getFolder($folder);
+        // Prefer the enumerated Folder object; fall back to a path lookup for
+        // callers that select without listing first (e.g. the connection test).
+        $this->folder = $this->foldersByPath[$folder] ?? $this->client->getFolderByPath($folder);
+
+        if ($this->folder === null) {
+            throw new \RuntimeException("Folder not found on server: {$folder}");
+        }
 
         // EXAMINE opens the folder read-only and returns its status.
         $status = $this->folder->examine();
