@@ -166,7 +166,7 @@ it('opens a deep-linked task on the board on load', function () {
     $project = Project::factory()->create();
     $task = Task::factory()->for($project)->create();
 
-    Livewire::test(Board::class, ['project' => $project, 'openTask' => $task->id])
+    Livewire::test(Board::class, ['project' => $project, 'openTaskId' => $task->id])
         ->assertDispatched('open-task', taskId: $task->id);
 });
 

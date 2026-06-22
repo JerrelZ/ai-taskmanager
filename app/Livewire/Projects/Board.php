@@ -48,9 +48,16 @@ class Board extends Component
     #[Url]
     public string $search = '';
 
-    /** Deep-link target: a task to open on load (e.g. from a chat #ref chip). */
-    #[Url]
-    public ?int $openTask = null;
+    /**
+     * Deep-link target: a task to open on load (e.g. from a chat #ref chip).
+     *
+     * The property is named $openTaskId (not $openTask) to avoid colliding with
+     * the openTask() action: in Livewire 4 a state property shadows a method of
+     * the same name on $wire, which breaks wire:click="openTask(...)". The URL
+     * query param stays `openTask` via the `as:` alias to keep shareable links.
+     */
+    #[Url(as: 'openTask')]
+    public ?int $openTaskId = null;
 
     /** @var array<string, string> Quick-create title per status column. */
     public array $newTaskTitle = [];
@@ -81,8 +88,8 @@ class Board extends Component
         $this->project = $project;
 
         // Open a deep-linked task once the detail panel is listening.
-        if ($this->openTask !== null && $project->tasks()->whereKey($this->openTask)->exists()) {
-            $this->dispatch('open-task', taskId: $this->openTask);
+        if ($this->openTaskId !== null && $project->tasks()->whereKey($this->openTaskId)->exists()) {
+            $this->dispatch('open-task', taskId: $this->openTaskId);
         }
 
         $this->rememberBoardSignature();
