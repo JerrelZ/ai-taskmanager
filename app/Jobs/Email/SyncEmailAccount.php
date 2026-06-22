@@ -168,7 +168,7 @@ class SyncEmailAccount implements ShouldQueue
                 'message_id' => $messageId,
                 'raw_path' => $path,
                 'raw_size' => strlen($raw),
-                'direction' => EmailMessage::DIRECTION_INBOUND,
+                'direction' => $this->directionForFolder($folder->name),
                 'status' => EmailMessage::STATUS_RECEIVED,
                 'received_at' => now(),
             ]);
@@ -177,6 +177,18 @@ class SyncEmailAccount implements ShouldQueue
 
             DB::afterCommit(fn () => ParseEmailMessage::dispatch($message->id));
         });
+    }
+
+    /**
+     * Messages pulled from the Sent folder are our own outgoing mail; everything
+     * else (INBOX) is genuinely received. Direction drives which side of a thread
+     * a message renders on, and gates inbound-only work (auto-link, notifications).
+     */
+    private function directionForFolder(string $folderName): string
+    {
+        return $folderName === 'Sent'
+            ? EmailMessage::DIRECTION_OUTBOUND
+            : EmailMessage::DIRECTION_INBOUND;
     }
 
     private function advanceWatermark(EmailFolder $folder, int $uid): void

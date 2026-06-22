@@ -61,6 +61,25 @@ it('persists the raw source first and marks every message received', function ()
     Bus::assertDispatchedTimes(ParseEmailMessage::class, 2);
 });
 
+it('marks messages from the Sent folder as outbound', function () {
+    Bus::fake([ParseEmailMessage::class]);
+
+    $account = EmailAccount::factory()->create();
+    $this->fakeImap->for($account)
+        ->seed('INBOX', 1, rawEmail('<in@example.com>'))
+        ->seed('Sent', 1, rawEmail('<out@example.com>'));
+
+    runSync($account);
+
+    $inbound = EmailMessage::where('email_account_id', $account->id)->where('uid', 1)
+        ->whereHas('folder', fn ($q) => $q->where('name', 'INBOX'))->first();
+    $outbound = EmailMessage::where('email_account_id', $account->id)->where('uid', 1)
+        ->whereHas('folder', fn ($q) => $q->where('name', 'Sent'))->first();
+
+    expect($inbound->direction)->toBe(EmailMessage::DIRECTION_INBOUND);
+    expect($outbound->direction)->toBe(EmailMessage::DIRECTION_OUTBOUND);
+});
+
 it('is idempotent across repeated syncs', function () {
     Bus::fake([ParseEmailMessage::class]);
 
