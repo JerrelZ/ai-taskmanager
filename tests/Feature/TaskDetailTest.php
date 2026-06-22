@@ -7,6 +7,8 @@ use App\Models\Label;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
@@ -113,6 +115,52 @@ test('a comment can be posted', function () {
     $comment = $this->task->comments()->first();
     expect($comment->body)->toBe('Goed bezig!')
         ->and($comment->user_id)->toBe($this->user->id);
+});
+
+test('a reply can carry file attachments', function () {
+    Storage::fake('local');
+
+    openDetail()
+        ->set('newComment', 'Zie de bijlage')
+        ->set('newCommentAttachments', [UploadedFile::fake()->create('offerte.pdf', 8, 'application/pdf')])
+        ->call('addComment')
+        ->assertHasNoErrors();
+
+    $comment = $this->task->comments()->first();
+
+    // The file is linked to the comment...
+    expect($comment->attachments()->count())->toBe(1)
+        ->and($comment->attachments()->first()->filename)->toBe('offerte.pdf')
+        // ...while still living among all of the task's attachments.
+        ->and($this->task->attachments()->count())->toBe(1);
+});
+
+test('a reply with only a file and no text is accepted', function () {
+    Storage::fake('local');
+
+    openDetail()
+        ->set('newCommentAttachments', [UploadedFile::fake()->image('schermafbeelding.png')])
+        ->call('addComment')
+        ->assertHasNoErrors();
+
+    expect($this->task->comments()->count())->toBe(1)
+        ->and($this->task->comments()->first()->attachments()->count())->toBe(1);
+});
+
+test('a pending reply attachment can be removed before sending', function () {
+    Storage::fake('local');
+
+    openDetail()
+        ->set('newCommentAttachments', [
+            UploadedFile::fake()->create('een.pdf', 4),
+            UploadedFile::fake()->create('twee.pdf', 4),
+        ])
+        ->call('removeNewCommentAttachment', 0)
+        ->assertCount('newCommentAttachments', 1)
+        ->set('newComment', 'Klaar')
+        ->call('addComment');
+
+    expect($this->task->attachments()->count())->toBe(1);
 });
 
 test('posting a comment logs an activity', function () {

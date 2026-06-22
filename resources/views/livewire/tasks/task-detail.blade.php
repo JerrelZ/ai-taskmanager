@@ -278,7 +278,14 @@
                                             <flux:heading size="sm">{{ $comment->user->name }}</flux:heading>
                                             <flux:text size="sm" class="text-zinc-400">{{ $comment->created_at->diffForHumans() }}</flux:text>
                                         </div>
-                                        <div class="mt-0.5 text-sm text-zinc-700 dark:text-zinc-200">{!! \App\Support\Mentions::render($comment->body, $this->users) !!}</div>
+                                        @if (filled($comment->body))
+                                            <div class="mt-0.5 text-sm text-zinc-700 dark:text-zinc-200">{!! \App\Support\Mentions::render($comment->body, $this->users) !!}</div>
+                                        @endif
+                                        @if ($comment->attachments->isNotEmpty())
+                                            <div class="mt-2">
+                                                <x-attachment-list :attachments="$comment->attachments" />
+                                            </div>
+                                        @endif
                                     </div>
                                 </div>
                             @empty
@@ -286,26 +293,51 @@
                             @endforelse
                         </div>
 
-                        <form wire:submit="addComment" x-data="mentionField(@js($this->users->pluck('name')->values()))" class="flex items-end gap-2">
-                            <div class="relative flex-1">
-                                <textarea
-                                    x-ref="input"
-                                    wire:model="newComment"
-                                    x-on:input="onInput()"
-                                    x-on:keydown="onKeydown($event)"
-                                    rows="1"
-                                    placeholder="{{ __('Schrijf een reactie…') }}"
-                                    class="block max-h-32 w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-base text-zinc-800 placeholder-zinc-400 focus:border-brand-500 focus:outline-none focus:ring-0 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                                ></textarea>
-
-                                {{-- Mention autocomplete --}}
-                                <div x-show="open" x-cloak class="absolute bottom-full start-0 z-20 mb-1 max-h-48 w-64 max-w-[80vw] overflow-y-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
-                                    <template x-for="(name, i) in matches" :key="name">
-                                        <button type="button" x-on:mousedown.prevent="choose(name)" :class="i === active ? 'bg-brand-50 dark:bg-brand-950/40' : ''" class="block w-full px-3 py-2 text-start text-sm text-zinc-700 dark:text-zinc-200">@<span x-text="name"></span></button>
-                                    </template>
-                                </div>
+                        <form wire:submit="addComment" x-data="mentionField(@js($this->users->pluck('name')->values()))" class="space-y-2">
+                            <div wire:loading.flex wire:target="newCommentAttachments" class="items-center gap-2 text-xs text-zinc-400">
+                                <flux:icon name="loading" variant="micro" />
+                                {{ __('Bezig met uploaden...') }}
                             </div>
-                            <flux:button type="submit" variant="primary" icon="paper-airplane" />
+
+                            @if (count($newCommentAttachments) > 0)
+                                <div class="space-y-1" wire:loading.remove wire:target="newCommentAttachments">
+                                    @foreach ($newCommentAttachments as $index => $pending)
+                                        <div wire:key="pending-comment-{{ $index }}" class="flex items-center gap-2 rounded-md bg-zinc-50 px-2 py-1.5 dark:bg-zinc-800/50">
+                                            <flux:icon name="paper-clip" class="size-4 shrink-0 text-zinc-400" />
+                                            <span class="flex-1 truncate text-sm text-zinc-700 dark:text-zinc-200">{{ $pending->getClientOriginalName() }}</span>
+                                            <flux:button wire:click="removeNewCommentAttachment({{ $index }})" variant="subtle" size="xs" icon="x-mark" :tooltip="__('Verwijderen')" />
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            <div class="flex items-end gap-2">
+                                <div class="relative flex-1">
+                                    <textarea
+                                        x-ref="input"
+                                        wire:model="newComment"
+                                        x-on:input="onInput()"
+                                        x-on:keydown="onKeydown($event)"
+                                        rows="1"
+                                        placeholder="{{ __('Schrijf een reactie…') }}"
+                                        class="block max-h-32 w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-base text-zinc-800 placeholder-zinc-400 focus:border-brand-500 focus:outline-none focus:ring-0 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                                    ></textarea>
+
+                                    {{-- Mention autocomplete --}}
+                                    <div x-show="open" x-cloak class="absolute bottom-full start-0 z-20 mb-1 max-h-48 w-64 max-w-[80vw] overflow-y-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+                                        <template x-for="(name, i) in matches" :key="name">
+                                            <button type="button" x-on:mousedown.prevent="choose(name)" :class="i === active ? 'bg-brand-50 dark:bg-brand-950/40' : ''" class="block w-full px-3 py-2 text-start text-sm text-zinc-700 dark:text-zinc-200">@<span x-text="name"></span></button>
+                                        </template>
+                                    </div>
+                                </div>
+                                <label class="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300" title="{{ __('Bestand toevoegen') }}">
+                                    <flux:icon name="paper-clip" class="size-5" />
+                                    <input type="file" wire:model="newCommentAttachments" multiple class="hidden" />
+                                </label>
+                                <flux:button type="submit" variant="primary" icon="paper-airplane" />
+                            </div>
+                            <flux:error name="newCommentAttachments" />
+                            <flux:error name="newCommentAttachments.*" />
                         </form>
                     </div>
 
