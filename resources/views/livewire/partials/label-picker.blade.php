@@ -2,7 +2,10 @@
     Inline label picker. Works in any Livewire component that exposes a
     `toggleLabel(int $id, int $labelId)` action and a `$this->labels` collection.
     Expects the task's `labels` relation to be eager-loaded.
+
+    Hidden entirely while the label feature is switched off (config features.labels).
 --}}
+@if (config('features.labels'))
 <flux:dropdown wire:sort:ignore position="bottom" align="end">
     <button
         type="button"
@@ -35,3 +38,4 @@
         @endforelse
     </flux:menu>
 </flux:dropdown>
+@endif

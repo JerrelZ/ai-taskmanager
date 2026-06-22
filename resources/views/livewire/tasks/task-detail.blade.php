@@ -20,6 +20,21 @@
                 </div>
 
                 <div class="flex shrink-0 items-center gap-1">
+                    <flux:button wire:click="copyLink" variant="subtle" size="sm" icon="link" inset="top bottom" :tooltip="__('Kopieer link om te delen')" />
+
+                    <flux:dropdown position="bottom" align="end">
+                        <flux:button variant="subtle" size="sm" icon="paper-airplane" inset="top bottom" :tooltip="__('Deel in chat')" />
+                        <flux:menu class="max-h-80 overflow-y-auto">
+                            @forelse ($this->shareConversations as $conversation)
+                                <flux:menu.item wire:click="sendToChat({{ $conversation->id }})" icon="chat-bubble-left-right">
+                                    {{ $conversation->titleFor(auth()->user()) }}
+                                </flux:menu.item>
+                            @empty
+                                <flux:menu.item disabled>{{ __('Geen gesprekken') }}</flux:menu.item>
+                            @endforelse
+                        </flux:menu>
+                    </flux:dropdown>
+
                     @if (auth()->user()?->canCopyPrompt())
                         <flux:button wire:click="copyPrompt({{ $task->id }})" variant="subtle" size="sm" icon="clipboard-document"><span class="hidden sm:inline">{{ __('Kopieer prompt') }}</span></flux:button>
                     @endif
@@ -99,31 +114,33 @@
                     </flux:dropdown>
 
                     {{-- Labels --}}
-                    <flux:dropdown position="bottom" align="start">
-                        <flux:badge as="button" type="button" color="zinc" size="sm" rounded icon="tag" icon:trailing="chevron-down" class="cursor-pointer">
-                            {{ count($selectedLabels) > 0 ? count($selectedLabels).' '.__('labels') : __('Labels') }}
-                        </flux:badge>
-                        <flux:menu class="max-h-72 overflow-y-auto">
-                            @foreach ($this->labels as $label)
-                                <flux:menu.item wire:click="toggleLabel({{ $label->id }})" :icon="in_array($label->id, $selectedLabels) ? 'check' : null">
-                                    <span class="flex items-center gap-2">
-                                        <span class="size-2 rounded-full bg-{{ $label->color }}-500"></span>
-                                        {{ $label->name }}
-                                    </span>
-                                </flux:menu.item>
-                            @endforeach
-                            <flux:menu.separator />
-                            <div class="p-1" wire:sort:ignore>
-                                <form wire:submit="createLabel">
-                                    <flux:input wire:model="newLabelName" size="sm" placeholder="{{ __('Nieuw label...') }}" kbd="↵" />
-                                </form>
-                            </div>
-                        </flux:menu>
-                    </flux:dropdown>
+                    @if (config('features.labels'))
+                        <flux:dropdown position="bottom" align="start">
+                            <flux:badge as="button" type="button" color="zinc" size="sm" rounded icon="tag" icon:trailing="chevron-down" class="cursor-pointer">
+                                {{ count($selectedLabels) > 0 ? count($selectedLabels).' '.__('labels') : __('Labels') }}
+                            </flux:badge>
+                            <flux:menu class="max-h-72 overflow-y-auto">
+                                @foreach ($this->labels as $label)
+                                    <flux:menu.item wire:click="toggleLabel({{ $label->id }})" :icon="in_array($label->id, $selectedLabels) ? 'check' : null">
+                                        <span class="flex items-center gap-2">
+                                            <span class="size-2 rounded-full bg-{{ $label->color }}-500"></span>
+                                            {{ $label->name }}
+                                        </span>
+                                    </flux:menu.item>
+                                @endforeach
+                                <flux:menu.separator />
+                                <div class="p-1" wire:sort:ignore>
+                                    <form wire:submit="createLabel">
+                                        <flux:input wire:model="newLabelName" size="sm" placeholder="{{ __('Nieuw label...') }}" kbd="↵" />
+                                    </form>
+                                </div>
+                            </flux:menu>
+                        </flux:dropdown>
+                    @endif
                 </div>
 
                 {{-- Selected labels --}}
-                @if (count($selectedLabels) > 0)
+                @if (config('features.labels') && count($selectedLabels) > 0)
                     <div class="flex flex-wrap gap-1.5">
                         @foreach ($this->labels->whereIn('id', $selectedLabels) as $label)
                             <flux:badge :color="$label->color" size="sm">
@@ -393,43 +410,45 @@
                     <flux:date-picker wire:model.live="dueDate" :label="__('Deadline')" size="sm" clearable with-today />
 
                     {{-- Labels --}}
-                    <div class="space-y-2">
-                        <div class="flex items-center justify-between">
-                            <flux:subheading>{{ __('Labels') }}</flux:subheading>
-                            <flux:dropdown>
-                                <flux:button variant="subtle" size="xs" icon="plus">{{ __('Label') }}</flux:button>
-                                <flux:menu class="max-h-72 overflow-y-auto">
-                                    @foreach ($this->labels as $label)
-                                        <flux:menu.item wire:click="toggleLabel({{ $label->id }})" :icon="in_array($label->id, $selectedLabels) ? 'check' : null">
-                                            <span class="flex items-center gap-2">
-                                                <span class="size-2 rounded-full bg-{{ $label->color }}-500"></span>
-                                                {{ $label->name }}
-                                            </span>
-                                        </flux:menu.item>
-                                    @endforeach
-                                    <flux:menu.separator />
-                                    <div class="p-1" wire:sort:ignore>
-                                        <form wire:submit="createLabel">
-                                            <flux:input wire:model="newLabelName" size="sm" placeholder="{{ __('Nieuw label...') }}" kbd="↵" />
-                                        </form>
-                                    </div>
-                                </flux:menu>
-                            </flux:dropdown>
+                    @if (config('features.labels'))
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <flux:subheading>{{ __('Labels') }}</flux:subheading>
+                                <flux:dropdown>
+                                    <flux:button variant="subtle" size="xs" icon="plus">{{ __('Label') }}</flux:button>
+                                    <flux:menu class="max-h-72 overflow-y-auto">
+                                        @foreach ($this->labels as $label)
+                                            <flux:menu.item wire:click="toggleLabel({{ $label->id }})" :icon="in_array($label->id, $selectedLabels) ? 'check' : null">
+                                                <span class="flex items-center gap-2">
+                                                    <span class="size-2 rounded-full bg-{{ $label->color }}-500"></span>
+                                                    {{ $label->name }}
+                                                </span>
+                                            </flux:menu.item>
+                                        @endforeach
+                                        <flux:menu.separator />
+                                        <div class="p-1" wire:sort:ignore>
+                                            <form wire:submit="createLabel">
+                                                <flux:input wire:model="newLabelName" size="sm" placeholder="{{ __('Nieuw label...') }}" kbd="↵" />
+                                            </form>
+                                        </div>
+                                    </flux:menu>
+                                </flux:dropdown>
+                            </div>
+
+                            <div class="flex flex-wrap gap-1.5">
+                                @forelse ($this->labels->whereIn('id', $selectedLabels) as $label)
+                                    <flux:badge :color="$label->color" size="sm">
+                                        {{ $label->name }}
+                                        <flux:badge.close wire:click="toggleLabel({{ $label->id }})" />
+                                    </flux:badge>
+                                @empty
+                                    <flux:text size="sm" class="text-zinc-400">{{ __('Geen labels') }}</flux:text>
+                                @endforelse
+                            </div>
                         </div>
 
-                        <div class="flex flex-wrap gap-1.5">
-                            @forelse ($this->labels->whereIn('id', $selectedLabels) as $label)
-                                <flux:badge :color="$label->color" size="sm">
-                                    {{ $label->name }}
-                                    <flux:badge.close wire:click="toggleLabel({{ $label->id }})" />
-                                </flux:badge>
-                            @empty
-                                <flux:text size="sm" class="text-zinc-400">{{ __('Geen labels') }}</flux:text>
-                            @endforelse
-                        </div>
-                    </div>
-
-                    <flux:separator />
+                        <flux:separator />
+                    @endif
 
                     {{-- Freshness --}}
                     <div class="space-y-1.5 text-xs text-zinc-400">

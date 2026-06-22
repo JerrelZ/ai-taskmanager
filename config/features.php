@@ -19,4 +19,18 @@ return [
 
     'ai' => env('AI_FEATURES', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Labels
+    |--------------------------------------------------------------------------
+    |
+    | Master switch for the ticket label feature in the front-end (the label
+    | picker on cards/rows, the board label filter, the bulk "add label" action
+    | and the label management in the ticket modal). Turn off to hide it without
+    | touching the data or backend — flip back on to restore.
+    |
+    */
+
+    'labels' => env('LABELS_FEATURE', true),
+
 ];

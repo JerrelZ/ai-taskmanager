@@ -99,7 +99,7 @@
             </flux:dropdown>
 
             {{-- Label --}}
-            @if ($this->labels->isNotEmpty())
+            @if (config('features.labels') && $this->labels->isNotEmpty())
                 <flux:dropdown position="bottom" align="end">
                     <flux:button size="sm" variant="subtle" icon:trailing="chevron-down">{{ __('Label') }}</flux:button>
                     <flux:menu class="max-h-72 overflow-y-auto">

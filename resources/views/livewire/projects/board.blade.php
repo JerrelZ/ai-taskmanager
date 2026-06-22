@@ -29,12 +29,14 @@
                 @endforeach
             </flux:select>
 
-            <flux:select wire:model.live="labelFilter" size="sm" placeholder="{{ __('Label') }}" class="max-w-[160px]">
-                <flux:select.option value="">{{ __('Alle labels') }}</flux:select.option>
-                @foreach ($this->labels as $label)
-                    <flux:select.option :value="$label->id">{{ $label->name }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            @if (config('features.labels'))
+                <flux:select wire:model.live="labelFilter" size="sm" placeholder="{{ __('Label') }}" class="max-w-[160px]">
+                    <flux:select.option value="">{{ __('Alle labels') }}</flux:select.option>
+                    @foreach ($this->labels as $label)
+                        <flux:select.option :value="$label->id">{{ $label->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
 
             <flux:select wire:model.live="priorityFilter" size="sm" placeholder="{{ __('Prioriteit') }}" class="max-w-[160px]">
                 <flux:select.option value="">{{ __('Alle prioriteiten') }}</flux:select.option>

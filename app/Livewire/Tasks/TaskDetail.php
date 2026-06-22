@@ -5,6 +5,7 @@ namespace App\Livewire\Tasks;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Livewire\Concerns\CopiesTaskPrompt;
+use App\Models\Conversation;
 use App\Models\Label;
 use App\Models\Task;
 use App\Models\User;
@@ -103,6 +104,68 @@ class TaskDetail extends Component
         }
 
         return $task;
+    }
+
+    /**
+     * Copy the ticket's shareable URL to the clipboard so it can be sent to a
+     * colleague. Reuses the same browser clipboard listener as the prompt copy.
+     */
+    public function copyLink(): void
+    {
+        $task = $this->task();
+
+        if ($task === null) {
+            return;
+        }
+
+        $this->dispatch('copy-to-clipboard', text: $task->ticketUrl());
+
+        Flux::toast(text: __('Link gekopieerd.'), variant: 'success');
+    }
+
+    /**
+     * Conversations the current user can post into, for the "share to chat"
+     * picker in the header.
+     *
+     * @return Collection<int, Conversation>
+     */
+    #[Computed]
+    public function shareConversations(): Collection
+    {
+        return Conversation::query()
+            ->visibleTo(Auth::user())
+            ->with(['users', 'project'])
+            ->orderByDesc('last_message_at')
+            ->orderByDesc('id')
+            ->get();
+    }
+
+    /**
+     * Post the ticket's identifier, title and shareable link into a chosen
+     * conversation the user has access to.
+     */
+    public function sendToChat(int $conversationId): void
+    {
+        $task = $this->task();
+
+        if ($task === null) {
+            return;
+        }
+
+        $conversation = Conversation::query()
+            ->visibleTo(Auth::user())
+            ->find($conversationId);
+
+        if ($conversation === null) {
+            return;
+        }
+
+        $conversation->postMessage(
+            Auth::user(),
+            $task->identifier().' — '.$task->title."\n".$task->ticketUrl(),
+        );
+
+        Flux::toast(text: __('Gedeeld in :chat', ['chat' => $conversation->titleFor(Auth::user())]), variant: 'success');
     }
 
     public function uploadAttachments(AttachmentService $attachments): void

@@ -3,6 +3,7 @@
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Livewire\Tasks\TaskDetail;
+use App\Models\Conversation;
 use App\Models\Label;
 use App\Models\Project;
 use App\Models\Task;
@@ -203,4 +204,32 @@ test('opening a subtask switches the panel to it', function () {
     openDetail()
         ->call('open', $subtask->id)
         ->assertSet('taskId', $subtask->id);
+});
+
+test('copying the ticket link dispatches the share URL to the clipboard', function () {
+    openDetail()
+        ->call('copyLink')
+        ->assertDispatched('copy-to-clipboard', text: $this->task->ticketUrl());
+});
+
+test('sending a ticket to a chat posts its link as a message', function () {
+    $group = Conversation::factory()->create(['name' => 'Team']);
+    $group->users()->sync([$this->user->id]);
+
+    openDetail()->call('sendToChat', $group->id);
+
+    $message = $group->messages()->latest('id')->first();
+
+    expect($message)->not->toBeNull()
+        ->and($message->user_id)->toBe($this->user->id)
+        ->and($message->body)->toContain($this->task->ticketUrl());
+});
+
+test('a ticket cannot be sent to a conversation the user cannot access', function () {
+    $group = Conversation::factory()->create();
+    $group->users()->sync([User::factory()->create()->id]);
+
+    openDetail()->call('sendToChat', $group->id);
+
+    expect($group->messages()->count())->toBe(0);
 });
