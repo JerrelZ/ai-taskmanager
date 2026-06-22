@@ -9,7 +9,10 @@
     ])
 >
     <div class="mb-1 flex items-center justify-between gap-2">
-        <span class="font-mono text-[0.7rem] tracking-tight text-zinc-400">{{ $task->identifier() }}</span>
+        <span class="flex min-w-0 items-center gap-1.5">
+            <span class="font-mono text-[0.7rem] tracking-tight text-zinc-400">{{ $task->identifier() }}</span>
+            @include('livewire.partials.linear-badge', ['task' => $task])
+        </span>
         <div class="flex items-center gap-1">
             {{-- Mobile: tap the status pill to move the card to another column. --}}
             <flux:dropdown wire:sort:ignore position="bottom" align="end" class="lg:hidden">

@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -154,12 +155,82 @@ test('a message can be turned into a ticket (fallback without AI key)', function
         ->call('openConversation', $group->id)
         ->call('openTicketDraft', $message->id)
         ->set('ticketProjectId', $project->id)
+        ->call('generateTicketDraft')
+        ->assertSet('ticketDrafting', false)
+        ->assertSet('ticketAiDrafted', false)
         ->call('createTicketFromMessage');
 
     $task = Task::where('project_id', $project->id)->first();
 
     expect($task)->not->toBeNull()
+        ->and($task->title)->not->toBe('')
         ->and($task->description)->toContain('checkout-bug');
+});
+
+test('the AI draft uses the conversation as context and fills editable fields', function () {
+    config()->set('services.anthropic.key', 'test-key');
+
+    Http::fake([
+        'api.anthropic.com/*' => Http::response([
+            'content' => [['text' => '{"title": "Checkout-bug fixen", "description": "Los de fout in de checkout op voor livegang."}']],
+        ]),
+    ]);
+
+    $project = Project::factory()->create();
+    $group = Conversation::factory()->create();
+    $group->users()->sync([$this->user->id]);
+    $group->postMessage($this->user, 'De checkout geeft een 500 bij afrekenen');
+    $message = $group->postMessage($this->user, 'We moeten dat fixen voor de livegang');
+
+    Livewire::test(Index::class)
+        ->call('openConversation', $group->id)
+        ->call('openTicketDraft', $message->id)
+        ->set('ticketProjectId', $project->id)
+        ->call('generateTicketDraft')
+        ->assertSet('ticketTitle', 'Checkout-bug fixen')
+        ->assertSet('ticketAiDrafted', true)
+        ->set('ticketPriority', 'high')
+        ->call('createTicketFromMessage');
+
+    $task = Task::where('project_id', $project->id)->first();
+
+    expect($task->title)->toBe('Checkout-bug fixen')
+        ->and($task->priority->value)->toBe('high');
+
+    // The earlier message was sent along as context, not just the focal one.
+    Http::assertSent(fn ($request) => str_contains($request['messages'][0]['content'], 'geeft een 500'));
+});
+
+test('the ticket draft preselects the only visible project', function () {
+    config()->set('services.anthropic.key', null);
+
+    $project = Project::factory()->create();
+    $group = Conversation::factory()->create();
+    $group->users()->sync([$this->user->id]);
+    $message = $group->postMessage($this->user, 'iets te doen');
+
+    Livewire::test(Index::class)
+        ->call('openConversation', $group->id)
+        ->call('openTicketDraft', $message->id)
+        ->assertSet('ticketProjectId', $project->id);
+});
+
+test('creating a ticket from a message requires a title', function () {
+    $project = Project::factory()->create();
+    $group = Conversation::factory()->create();
+    $group->users()->sync([$this->user->id]);
+    $message = $group->postMessage($this->user, 'iets');
+
+    Livewire::test(Index::class)
+        ->call('openConversation', $group->id)
+        ->call('openTicketDraft', $message->id)
+        ->set('ticketProjectId', $project->id)
+        ->set('ticketTitle', '')
+        ->set('ticketDrafting', false)
+        ->call('createTicketFromMessage')
+        ->assertHasErrors('ticketTitle');
+
+    expect(Task::where('project_id', $project->id)->exists())->toBeFalse();
 });
 
 test('the unread count reflects unread messages and resets on read', function () {

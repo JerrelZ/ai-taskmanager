@@ -19,6 +19,8 @@
 
     <span class="shrink-0 font-mono text-[0.7rem] tracking-tight text-zinc-400">{{ $task->identifier() }}</span>
 
+    @include('livewire.partials.linear-badge', ['task' => $task])
+
     <p @class([
         'flex-1 truncate text-sm text-zinc-800 dark:text-zinc-100',
         'line-through opacity-60' => $task->isComplete(),

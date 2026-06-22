@@ -641,7 +641,6 @@ class Inbox extends Component
         ]);
 
         $priority = TaskPriority::from($validated['ticketPriority']);
-        $maxPosition = (int) $this->project->rootTasks()->where('status', TaskStatus::Backlog->value)->max('position');
 
         $task = $this->project->tasks()->create([
             'email_thread_id' => $thread->id,
@@ -650,7 +649,7 @@ class Inbox extends Component
             'status' => TaskStatus::Backlog,
             'priority' => $priority,
             'assignee_id' => $validated['ticketAssigneeId'],
-            'position' => $maxPosition + 1,
+            'position' => Task::nextRootPosition($this->project->workspace_id, TaskStatus::Backlog->value),
             'created_by' => Auth::id(),
         ]);
 

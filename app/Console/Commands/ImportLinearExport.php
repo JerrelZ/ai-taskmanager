@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\UserRole;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\AttachmentService;
@@ -16,6 +17,7 @@ use Illuminate\Support\Str;
 #[Signature('linear:import
     {file? : Path to the Linear CSV export}
     {--owner=jerrel@zendos.nl : Email of the workspace owner the import lands in}
+    {--create-users : Create missing Creator/Assignee users and print their generated passwords}
     {--no-attachments : Skip downloading ticket attachments}')]
 #[Description('Import a Linear CSV export into the owner\'s workspace: one client + project per team, with parent links and attachments. Non-destructive and idempotent per team.')]
 class ImportLinearExport extends Command
@@ -67,6 +69,15 @@ class ImportLinearExport extends Command
      */
     private User $owner;
 
+    /**
+     * Resolved user id per (lower-cased) Creator/Assignee email. Empty unless
+     * --create-users is set, in which case tickets are attributed to their
+     * author and assignee.
+     *
+     * @var array<string, int>
+     */
+    private array $userIdByEmail = [];
+
     public function handle(AttachmentService $attachments): int
     {
         $path = $this->argument('file') ?? $this->latestExport();
@@ -96,18 +107,109 @@ class ImportLinearExport extends Command
             return self::FAILURE;
         }
 
+        $createdUsers = $this->option('create-users')
+            ? $this->resolveUsersFromExport($rowsByTeam)
+            : [];
+
         foreach ($rowsByTeam as $team => $rows) {
             $this->importTeam((string) $team, $rows, $attachments);
         }
 
+        $this->reportCreatedUsers($createdUsers);
+
         return self::SUCCESS;
+    }
+
+    /**
+     * Find or create a user for every Creator/Assignee email in the export,
+     * linking each into the owner's workspace, and record the email/id map used
+     * to attribute tickets. Returns the freshly created users together with the
+     * random password generated for them, so the operator can hand these out.
+     *
+     * Existing users keep their password; only new members get a generated one.
+     *
+     * @param  array<string, list<array{number: int|null, linear_id: string|null, parent: int|null, creator: string, assignee: string, raw_description: string, attributes: array<string, mixed>}>>  $rowsByTeam
+     * @return list<array{email: string, password: string}>
+     */
+    private function resolveUsersFromExport(array $rowsByTeam): array
+    {
+        $emails = [];
+
+        foreach ($rowsByTeam as $rows) {
+            foreach ($rows as $row) {
+                foreach ([$row['creator'], $row['assignee']] as $email) {
+                    if ($email !== '' && str_contains($email, '@')) {
+                        $emails[$email] = true;
+                    }
+                }
+            }
+        }
+
+        $created = [];
+
+        foreach (array_keys($emails) as $email) {
+            $user = User::firstWhere('email', $email);
+
+            if ($user === null) {
+                $password = Str::password(16);
+
+                $user = User::create([
+                    'workspace_id' => $this->workspaceId,
+                    'name' => $this->nameFromEmail($email),
+                    'email' => $email,
+                    'password' => $password,
+                    'role' => UserRole::Member,
+                    'email_verified_at' => now(),
+                ]);
+
+                $created[] = ['email' => $email, 'password' => $password];
+            }
+
+            $user->workspaces()->syncWithoutDetaching([$this->workspaceId]);
+
+            $this->userIdByEmail[$email] = $user->id;
+        }
+
+        return $created;
+    }
+
+    /**
+     * Print the generated passwords for newly created users as a table, so the
+     * operator can share each colleague their first-login credentials.
+     *
+     * @param  list<array{email: string, password: string}>  $created
+     */
+    private function reportCreatedUsers(array $created): void
+    {
+        if ($created === []) {
+            return;
+        }
+
+        $this->newLine();
+        $this->info('Nieuwe gebruikers aangemaakt — deel deze wachtwoorden:');
+        $this->table(
+            ['E-mail', 'Wachtwoord'],
+            array_map(fn (array $user) => [$user['email'], $user['password']], $created),
+        );
+    }
+
+    /**
+     * A readable display name derived from an email local part
+     * ("jan.de.vries@x.nl" -> "Jan De Vries").
+     */
+    private function nameFromEmail(string $email): string
+    {
+        $local = (string) preg_replace('/[._-]+/', ' ', Str::before($email, '@'));
+        $name = Str::title(trim($local));
+
+        return $name !== '' ? $name : $email;
     }
 
     /**
      * Import one Linear team into its own client + project. Skips the team when
      * its client already exists in the workspace, so re-runs are safe.
      *
-     * @param  list<array{number: int|null, parent: int|null, raw_description: string, attributes: array<string, mixed>}>  $rows
+     * @param  list<array{number: int|null, linear_id: string|null, parent: int|null, creator: string, assignee: string, raw_description: string, attributes: array<string, mixed>}>  $rows
      */
     private function importTeam(string $team, array $rows, AttachmentService $attachments): void
     {
@@ -161,10 +263,10 @@ class ImportLinearExport extends Command
     /**
      * Bulk-insert the tickets. We use the query builder so no model events fire
      * (the import must not trigger the per-task AI-readiness jobs). Creator and
-     * assignee are intentionally left unset so the import never creates users in
-     * the owner's workspace.
+     * assignee are attributed only when --create-users resolved their emails to
+     * users; otherwise both stay null.
      *
-     * @param  list<array{number: int|null, parent: int|null, raw_description: string, attributes: array<string, mixed>}>  $rows
+     * @param  list<array{number: int|null, linear_id: string|null, parent: int|null, creator: string, assignee: string, raw_description: string, attributes: array<string, mixed>}>  $rows
      */
     private function insertTasks(array $rows, int $projectId): void
     {
@@ -174,9 +276,11 @@ class ImportLinearExport extends Command
             $records[] = [
                 'project_id' => $projectId,
                 'number' => $row['number'],
+                'linear_id' => $row['linear_id'],
                 'parent_id' => null,
                 'position' => $position,
-                'rank' => $position,
+                'created_by' => $this->userIdByEmail[$row['creator']] ?? null,
+                'assignee_id' => $this->userIdByEmail[$row['assignee']] ?? null,
                 ...$row['attributes'],
             ];
         }
@@ -190,7 +294,7 @@ class ImportLinearExport extends Command
      * Second pass: wire up parent/subtask links by matching the original Linear
      * numbers within this project.
      *
-     * @param  list<array{number: int|null, parent: int|null, raw_description: string, attributes: array<string, mixed>}>  $rows
+     * @param  list<array{number: int|null, linear_id: string|null, parent: int|null, creator: string, assignee: string, raw_description: string, attributes: array<string, mixed>}>  $rows
      */
     private function linkParents(array $rows, int $projectId): void
     {
@@ -216,7 +320,7 @@ class ImportLinearExport extends Command
      * Download every Linear-hosted attachment referenced in a ticket description
      * and link it to the task. Returns how many were stored.
      *
-     * @param  list<array{number: int|null, parent: int|null, raw_description: string, attributes: array<string, mixed>}>  $rows
+     * @param  list<array{number: int|null, linear_id: string|null, parent: int|null, creator: string, assignee: string, raw_description: string, attributes: array<string, mixed>}>  $rows
      */
     private function downloadAttachments(array $rows, int $projectId, AttachmentService $attachments): int
     {
@@ -278,7 +382,7 @@ class ImportLinearExport extends Command
     /**
      * Read and normalise every ticket, grouped by Linear team.
      *
-     * @return array<string, list<array{number: int|null, parent: int|null, raw_description: string, attributes: array<string, mixed>}>>
+     * @return array<string, list<array{number: int|null, linear_id: string|null, parent: int|null, creator: string, assignee: string, raw_description: string, attributes: array<string, mixed>}>>
      */
     private function readRows(string $path): array
     {
@@ -315,7 +419,10 @@ class ImportLinearExport extends Command
 
             $byTeam[$team][] = [
                 'number' => $this->ticketNumber($row['ID'] ?? ''),
+                'linear_id' => trim($row['ID'] ?? '') ?: null,
                 'parent' => $this->ticketNumber($row['Parent issue'] ?? ''),
+                'creator' => Str::lower(trim($row['Creator'] ?? '')),
+                'assignee' => Str::lower(trim($row['Assignee'] ?? '')),
                 'raw_description' => $rawDescription,
                 'attributes' => [
                     'title' => $title !== '' ? $title : 'Zonder titel',

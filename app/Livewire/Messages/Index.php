@@ -5,11 +5,13 @@ namespace App\Livewire\Messages;
 use App\Enums\ConversationType;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
+use App\Events\TaskBoardUpdated;
 use App\Livewire\Concerns\ManagesChatAttachments;
 use App\Livewire\Concerns\ManagesChatInteractions;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
+use App\Models\Task;
 use App\Models\User;
 use App\Services\AttachmentService;
 use App\Services\MessageToTaskDrafter;
@@ -52,6 +54,18 @@ class Index extends Component
 
     public ?int $ticketProjectId = null;
 
+    public string $ticketTitle = '';
+
+    public string $ticketDescription = '';
+
+    public string $ticketPriority = 'none';
+
+    /** True while the AI draft is being generated, so the modal can show a skeleton. */
+    public bool $ticketDrafting = false;
+
+    /** Whether the current draft text came from the AI (vs. the heuristic fallback). */
+    public bool $ticketAiDrafted = false;
+
     public function mount(): void
     {
         if ($this->conversationId !== null) {
@@ -67,11 +81,13 @@ class Index extends Component
      */
     public function getListeners(): array
     {
-        if ($this->conversationId === null) {
-            return [];
+        $listeners = ['generate-ticket-draft' => 'generateTicketDraft'];
+
+        if ($this->conversationId !== null) {
+            $listeners["echo-private:conversation.{$this->conversationId},.message.sent"] = 'pollMessages';
         }
 
-        return ["echo-private:conversation.{$this->conversationId},.message.sent" => 'pollMessages'];
+        return $listeners;
     }
 
     /**
@@ -437,6 +453,10 @@ class Index extends Component
         return Project::query()->visibleTo(Auth::user())->active()->orderBy('name')->get();
     }
 
+    /**
+     * Open the draft modal at once with a skeleton, then let the AI fill the
+     * fields in a follow-up request (dispatched event) so the UI stays snappy.
+     */
     public function openTicketDraft(int $messageId): void
     {
         $message = $this->activeConversation?->messages()->find($messageId);
@@ -446,41 +466,106 @@ class Index extends Component
         }
 
         $this->ticketMessageId = $message->id;
-        $this->ticketProjectId = $this->activeConversation?->project_id;
+        // Default to the conversation's project, otherwise the first visible one
+        // so a single-project workspace needs no manual selection.
+        $this->ticketProjectId = $this->activeConversation?->project_id ?? $this->ticketProjects->first()?->id;
+        $this->reset('ticketTitle', 'ticketDescription', 'ticketAiDrafted');
+        $this->ticketPriority = 'none';
+        $this->ticketDrafting = true;
 
         Flux::modal('message-to-ticket')->show();
+        $this->dispatch('generate-ticket-draft');
     }
 
-    public function createTicketFromMessage(MessageToTaskDrafter $drafter): void
+    /**
+     * Ask the AI for a title + description, using the surrounding conversation
+     * as context. Also bound to the "regenerate" button in the modal.
+     */
+    public function generateTicketDraft(MessageToTaskDrafter $drafter): void
     {
-        $message = Message::find($this->ticketMessageId);
-        $project = Project::find($this->ticketProjectId);
+        $message = $this->activeConversation?->messages()->find($this->ticketMessageId);
 
-        if ($message === null || $project === null) {
+        if ($message === null) {
+            $this->ticketDrafting = false;
+
             return;
         }
 
+        $draft = $drafter->draft(
+            (string) $message->body,
+            Project::find($this->ticketProjectId),
+            $this->conversationContext($message),
+        );
+
+        $this->ticketTitle = $draft['title'] !== '' ? $draft['title'] : Str::limit(trim((string) $message->body), 80, '');
+        $this->ticketDescription = $draft['description'];
+        $this->ticketAiDrafted = $draft['ai'];
+        $this->ticketDrafting = false;
+    }
+
+    /**
+     * The most recent conversation lines up to the focal message, oldest first,
+     * as "Naam: tekst" so the AI can ground the ticket in the discussion.
+     *
+     * @return array<int, string>
+     */
+    private function conversationContext(Message $focal): array
+    {
+        $conversation = $this->activeConversation;
+
+        if ($conversation === null) {
+            return [];
+        }
+
+        return $conversation->messages()
+            ->with('user')
+            ->where('id', '<=', $focal->id)
+            ->reorder()
+            ->latest('id')
+            ->limit(15)
+            ->get()
+            ->sortBy('id')
+            ->map(fn (Message $message) => ($message->user?->name ?? 'Onbekend').': '.Str::limit(trim((string) $message->body), 400))
+            ->values()
+            ->all();
+    }
+
+    public function createTicketFromMessage(): void
+    {
+        $validated = $this->validate([
+            'ticketProjectId' => ['required', 'integer', 'exists:projects,id'],
+            'ticketTitle' => ['required', 'string', 'max:250'],
+            'ticketDescription' => ['nullable', 'string', 'max:5000'],
+            'ticketPriority' => ['required', 'string', 'in:none,urgent,high,medium,low'],
+        ], [
+            'ticketProjectId.required' => __('Kies een project.'),
+            'ticketTitle.required' => __('Geef de ticket een titel.'),
+        ]);
+
+        $project = Project::findOrFail($validated['ticketProjectId']);
+
         abort_unless($project->isVisibleTo(Auth::user()), 403);
 
-        $draft = $drafter->draft($message->body, $project);
-
         $task = $project->tasks()->create([
-            'title' => $draft['title'] !== '' ? $draft['title'] : 'Nieuwe ticket',
-            'description' => $draft['description'],
+            'title' => $validated['ticketTitle'],
+            'description' => $validated['ticketDescription'] ?: null,
             'status' => TaskStatus::Backlog,
-            'priority' => TaskPriority::None,
+            'priority' => TaskPriority::from($validated['ticketPriority']),
             'created_by' => Auth::id(),
-            'position' => 0,
+            'position' => Task::nextRootPosition($project->workspace_id, TaskStatus::Backlog->value),
         ]);
 
         TaskActivity::log($task, 'created');
+        TaskBoardUpdated::dispatch($project->workspace_id);
 
-        $this->reset('ticketMessageId', 'ticketProjectId');
+        $aiDrafted = $this->ticketAiDrafted;
+        $this->reset('ticketMessageId', 'ticketProjectId', 'ticketTitle', 'ticketDescription', 'ticketAiDrafted');
+        $this->ticketPriority = 'none';
         Flux::modal('message-to-ticket')->close();
 
         Flux::toast(
             variant: 'success',
-            text: $draft['ai']
+            text: $aiDrafted
                 ? __('Ticket :id aangemaakt (AI).', ['id' => $task->identifier()])
                 : __('Ticket :id aangemaakt.', ['id' => $task->identifier()]),
         );

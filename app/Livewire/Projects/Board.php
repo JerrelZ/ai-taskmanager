@@ -5,7 +5,9 @@ namespace App\Livewire\Projects;
 use App\Enums\ProjectStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
+use App\Events\TaskBoardUpdated;
 use App\Livewire\Concerns\CopiesTaskPrompt;
+use App\Livewire\Concerns\PollsLiveBoard;
 use App\Models\Client;
 use App\Models\Label;
 use App\Models\Project;
@@ -13,11 +15,11 @@ use App\Models\Task;
 use App\Models\User;
 use App\Support\TaskActivity;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
-use Livewire\Attributes\On;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -26,6 +28,7 @@ use Livewire\Component;
 class Board extends Component
 {
     use CopiesTaskPrompt;
+    use PollsLiveBoard;
 
     public Project $project;
 
@@ -81,6 +84,8 @@ class Board extends Component
         if ($this->openTask !== null && $project->tasks()->whereKey($this->openTask)->exists()) {
             $this->dispatch('open-task', taskId: $this->openTask);
         }
+
+        $this->rememberBoardSignature();
     }
 
     public function canManageProject(): bool
@@ -246,25 +251,25 @@ class Board extends Component
         $task = $this->project->rootTasks()->findOrFail($id);
         $newStatus = TaskStatus::from($status);
 
-        $siblings = $this->project->rootTasks()
-            ->where('status', $newStatus->value)
-            ->whereKeyNot($task->id)
-            ->orderBy('position')
-            ->orderBy('id')
+        // Anchor the drop between the project tickets shown around the slot. The
+        // task is spliced between them in the workspace-global status order, so
+        // this project's relative order matches the all-tickets board.
+        $displayed = $this->columns[$newStatus->value]
             ->pluck('id')
+            ->reject(fn ($x) => $x === $task->id)
+            ->values()
             ->all();
 
-        $position = max(0, min($position, count($siblings)));
-        array_splice($siblings, $position, 0, [$task->id]);
-
-        foreach ($siblings as $index => $siblingId) {
-            Task::whereKey($siblingId)->update(['position' => $index]);
-        }
+        $position = max(0, min($position, count($displayed)));
+        $anchorAbove = $position > 0 ? $displayed[$position - 1] : null;
+        $anchorBelow = $position < count($displayed) ? $displayed[$position] : null;
 
         if ($task->status !== $newStatus) {
             TaskActivity::log($task, 'status', ['from' => $task->status->label(), 'to' => $newStatus->label()]);
             $task->update(['status' => $newStatus]);
         }
+
+        Task::reorderInStatus($this->project->workspace_id, $newStatus->value, $task->id, $anchorAbove, $anchorBelow);
 
         unset($this->tasks, $this->columns);
     }
@@ -281,10 +286,12 @@ class Board extends Component
             return;
         }
 
-        $maxPosition = (int) $this->project->rootTasks()->where('status', $newStatus->value)->max('position');
+        $position = Task::nextRootPosition($this->project->workspace_id, $newStatus->value);
 
         TaskActivity::log($task, 'status', ['from' => $task->status->label(), 'to' => $newStatus->label()]);
-        $task->update(['status' => $newStatus, 'position' => $maxPosition + 1]);
+        $task->update(['status' => $newStatus, 'position' => $position]);
+
+        TaskBoardUpdated::dispatch($this->project->workspace_id);
 
         unset($this->tasks, $this->columns);
     }
@@ -376,17 +383,18 @@ class Board extends Component
         }
 
         $statusEnum = TaskStatus::from($status);
-        $maxPosition = (int) $this->project->rootTasks()->where('status', $status)->max('position');
 
         $task = $this->project->tasks()->create([
             'title' => $title,
             'status' => $statusEnum,
             'priority' => TaskPriority::None,
-            'position' => $maxPosition + 1,
+            'position' => Task::nextRootPosition($this->project->workspace_id, $status),
             'created_by' => Auth::id(),
         ]);
 
         TaskActivity::log($task, 'created');
+
+        TaskBoardUpdated::dispatch($this->project->workspace_id);
 
         $this->newTaskTitle[$status] = '';
 
@@ -398,8 +406,35 @@ class Board extends Component
         $this->dispatch('open-task', taskId: $taskId);
     }
 
-    #[On('task-saved')]
+    /**
+     * Refresh on the local save event and on the workspace's live board stream,
+     * so a reorder by a teammate (or this user in another tab) shows up at once.
+     *
+     * @return array<string, string>
+     */
+    public function getListeners(): array
+    {
+        return [
+            'task-saved' => 'refreshBoard',
+            "echo-private:workspace.{$this->project->workspace_id}.board,.board.updated" => 'refreshBoard',
+        ];
+    }
+
     public function refreshBoard(): void
+    {
+        $this->forgetBoardCache();
+        $this->rememberBoardSignature();
+    }
+
+    /**
+     * @return Builder<Task>
+     */
+    protected function boardSignatureScope(): Builder
+    {
+        return Task::query()->roots()->where('project_id', $this->project->id);
+    }
+
+    protected function forgetBoardCache(): void
     {
         unset($this->tasks, $this->columns);
     }

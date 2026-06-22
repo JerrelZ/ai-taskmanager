@@ -38,15 +38,13 @@ class CreateProjectTaskTool extends Tool
         $status = TaskStatus::from($validated['status'] ?? TaskStatus::Backlog->value);
         $priority = TaskPriority::from($validated['priority'] ?? TaskPriority::None->value);
 
-        $maxPosition = (int) $project->rootTasks()->where('status', $status->value)->max('position');
-
         /** @var Task $task */
         $task = $project->tasks()->create([
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
             'status' => $status,
             'priority' => $priority,
-            'position' => $maxPosition + 1,
+            'position' => Task::nextRootPosition($project->workspace_id, $status->value),
             'created_by' => $request->user()?->id,
         ]);
 

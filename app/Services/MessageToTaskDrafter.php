@@ -13,9 +13,10 @@ class MessageToTaskDrafter
      * Uses Claude when an API key is configured, otherwise falls back
      * to a simple heuristic so the feature always works.
      *
+     * @param  array<int, string>  $contextMessages  Recent conversation lines ("Naam: tekst"), oldest first, for richer drafting.
      * @return array{title: string, description: string, ai: bool}
      */
-    public function draft(string $messageBody, ?Project $project = null): array
+    public function draft(string $messageBody, ?Project $project = null, array $contextMessages = []): array
     {
         $key = config('services.anthropic.key');
 
@@ -37,7 +38,7 @@ class MessageToTaskDrafter
                     .'Beschrijving: verheldert beknopt wat er moet gebeuren; verzin geen feiten.',
                 'messages' => [[
                     'role' => 'user',
-                    'content' => $this->prompt($messageBody, $project),
+                    'content' => $this->prompt($messageBody, $project, $contextMessages),
                 ]],
             ]);
 
@@ -61,15 +62,25 @@ class MessageToTaskDrafter
         }
     }
 
-    private function prompt(string $messageBody, ?Project $project): string
+    /**
+     * @param  array<int, string>  $contextMessages
+     */
+    private function prompt(string $messageBody, ?Project $project, array $contextMessages = []): string
     {
+        $thread = '';
+
+        if ($contextMessages !== []) {
+            $lines = implode("\n", $contextMessages);
+            $thread = "Gesprek tot nu toe (context, oudste eerst):\n\"\"\"\n{$lines}\n\"\"\"\n\n";
+        }
+
         $context = '';
 
         if ($project !== null && filled($project->stack)) {
             $context = "\n\nProjectcontext (stack): {$project->stack}";
         }
 
-        return "Chatbericht:\n\"\"\"\n{$messageBody}\n\"\"\"{$context}";
+        return $thread."Maak een ticket op basis van dit bericht als kern:\n\"\"\"\n{$messageBody}\n\"\"\"{$context}";
     }
 
     /**

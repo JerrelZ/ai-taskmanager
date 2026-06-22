@@ -2,11 +2,13 @@
 
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
+use App\Enums\UserRole;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\Workspace;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
@@ -101,6 +103,9 @@ it('imports every ticket of every team into the owner workspace, including compl
     expect(Task::count())->toBe(4)
         ->and(Project::firstWhere('key', 'REV')->tasks()->count())->toBe(2);
 
+    // The original Linear identifier is kept so the ticket can be traced back.
+    expect(Task::where('linear_id', 'BCCV2-1')->exists())->toBeTrue();
+
     // Nothing leaks into the other tenant, and no users are created from the CSV.
     expect(Client::where('workspace_id', $otherWorkspace->id)->exists())->toBeFalse()
         ->and(User::count())->toBe(2);
@@ -123,6 +128,58 @@ it('leaves creator and assignee unset so the import never creates users', functi
         ->and($task->status)->toBe(TaskStatus::Backlog)
         ->and($task->priority)->toBe(TaskPriority::Urgent)
         ->and(User::where('email', 'someone@linear.app')->exists())->toBeFalse();
+});
+
+it('creates missing users with a generated password and attributes tickets when --create-users is set', function () {
+    $owner = importOwner();
+
+    $path = writeLinearCsv([
+        linearRow('REVBOOS-10', 'RevBoost', 'Werk', 'Backlog', 'Urgent', 'jerrel@zendos.nl', 'nieuw.collega@example.com'),
+        linearRow('REVBOOS-11', 'RevBoost', 'Meer werk', 'Todo', 'High', 'nieuw.collega@example.com', ''),
+    ]);
+
+    $this->artisan('linear:import', ['file' => $path, '--no-attachments' => true, '--create-users' => true])
+        ->assertSuccessful();
+
+    $colleague = User::firstWhere('email', 'nieuw.collega@example.com');
+
+    // Missing assignee/creator is created as a workspace member, the owner is reused.
+    expect($colleague)->not->toBeNull()
+        ->and($colleague->name)->toBe('Nieuw Collega')
+        ->and($colleague->role)->toBe(UserRole::Member)
+        ->and($colleague->workspace_id)->toBe($owner->workspace_id)
+        ->and($colleague->belongsToWorkspace($owner->workspace_id))->toBeTrue()
+        ->and(User::count())->toBe(2);
+
+    // Tickets are attributed to the resolved creator and assignee.
+    $first = Task::where('number', 10)->first();
+    $second = Task::where('number', 11)->first();
+
+    expect($first->created_by)->toBe($owner->id)
+        ->and($first->assignee_id)->toBe($colleague->id)
+        ->and($second->created_by)->toBe($colleague->id)
+        ->and($second->assignee_id)->toBeNull();
+});
+
+it('does not regenerate passwords for users that already exist', function () {
+    $owner = importOwner();
+
+    $existing = User::factory()->create([
+        'workspace_id' => $owner->workspace_id,
+        'email' => 'bestaand@example.com',
+        'password' => Hash::make('original-secret'),
+    ]);
+
+    $path = writeLinearCsv([
+        linearRow('REVBOOS-10', 'RevBoost', 'Werk', 'Backlog', 'High', 'bestaand@example.com', 'bestaand@example.com'),
+    ]);
+
+    $this->artisan('linear:import', ['file' => $path, '--no-attachments' => true, '--create-users' => true])
+        ->assertSuccessful();
+
+    expect(User::count())->toBe(2)
+        ->and(Hash::check('original-secret', $existing->fresh()->password))->toBeTrue()
+        ->and(Task::first()->created_by)->toBe($existing->id);
 });
 
 it('links subtasks to their parent and preserves timestamps and html', function () {

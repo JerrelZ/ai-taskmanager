@@ -156,20 +156,51 @@
     </flux:modal>
 
     {{-- Message -> ticket --}}
-    <flux:modal name="message-to-ticket" class="md:w-96">
-        <form wire:submit="createTicketFromMessage" class="space-y-6">
+    <flux:modal name="message-to-ticket" class="md:w-[32rem]">
+        <form wire:submit="createTicketFromMessage" class="space-y-5">
             <div>
                 <flux:heading size="lg">{{ __('Ticket van bericht') }}</flux:heading>
-                <flux:subheading>{{ __('AI maakt er een nette titel + omschrijving van.') }}</flux:subheading>
+                <flux:subheading>{{ __('AI stelt titel + omschrijving voor uit het gesprek. Pas gerust aan.') }}</flux:subheading>
             </div>
-            <flux:select wire:model="ticketProjectId" :label="__('Project')" placeholder="{{ __('Kies project') }}">
+
+            <flux:select wire:model.live="ticketProjectId" :label="__('Project')" placeholder="{{ __('Kies project') }}">
                 @foreach ($this->ticketProjects as $project)
                     <flux:select.option :value="$project->id">{{ $project->name }}</flux:select.option>
                 @endforeach
             </flux:select>
+
+            {{-- AI draft: skeleton while generating, editable fields once ready. --}}
+            @if ($ticketDrafting)
+                <div class="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-400">
+                    <flux:icon name="sparkles" variant="micro" class="animate-pulse" />
+                    {{ __('AI schrijft een voorstel…') }}
+                </div>
+            @else
+                <div class="flex items-end gap-2">
+                    <flux:input wire:model.blur="ticketTitle" :label="__('Titel')" class="flex-1" />
+                    <flux:tooltip :content="__('Opnieuw door AI laten voorstellen')">
+                        <flux:button type="button" wire:click="generateTicketDraft" wire:loading.attr="disabled" size="sm" variant="subtle" icon="arrow-path">
+                            <span wire:loading.remove wire:target="generateTicketDraft">{{ __('Regenereer') }}</span>
+                            <span wire:loading wire:target="generateTicketDraft">{{ __('Bezig…') }}</span>
+                        </flux:button>
+                    </flux:tooltip>
+                </div>
+                <flux:textarea wire:model.blur="ticketDescription" :label="__('Omschrijving')" rows="5" />
+                <flux:select wire:model.live="ticketPriority" :label="__('Prioriteit')">
+                    @foreach (\App\Enums\TaskPriority::cases() as $priority)
+                        <flux:select.option :value="$priority->value">{{ $priority->label() }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                @if ($ticketAiDrafted)
+                    <flux:text size="sm" class="flex items-center gap-1 text-zinc-400">
+                        <flux:icon name="sparkles" variant="micro" /> {{ __('Voorgesteld door AI op basis van het gesprek.') }}
+                    </flux:text>
+                @endif
+            @endif
+
             <div class="flex justify-end gap-2">
                 <flux:modal.close><flux:button variant="ghost">{{ __('Annuleren') }}</flux:button></flux:modal.close>
-                <flux:button type="submit" variant="primary" icon="sparkles">{{ __('Maak ticket') }}</flux:button>
+                <flux:button type="submit" variant="primary" icon="check" wire:loading.attr="disabled" :disabled="$ticketDrafting">{{ __('Maak ticket') }}</flux:button>
             </div>
         </form>
     </flux:modal>

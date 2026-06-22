@@ -41,6 +41,7 @@
         ])>{{ $task->title }}</span>
         <span class="flex items-center gap-1.5 text-xs text-zinc-400">
             <span class="font-mono text-[0.7rem] tracking-tight text-zinc-400">{{ $task->identifier() }}</span>
+            @include('livewire.partials.linear-badge', ['task' => $task])
             <span class="size-1.5 rounded-full bg-{{ $task->project->color }}-500"></span>
             {{ $task->project->name }}
         </span>
@@ -48,8 +49,8 @@
 
     {{-- Stale --}}
     @if ($stale)
-        <flux:tooltip :content="__('Niet bijgewerkt sinds').' '.$touched?->translatedFormat('j M Y')">
-            <flux:badge color="amber" size="sm" icon="clock">{{ $touched?->diffForHumans(short: true) }}</flux:badge>
+        <flux:tooltip :content="__('Niet bijgewerkt sinds').' '.$touched?->translatedFormat('j M Y').' ('.$touched?->diffForHumans(short: true).')'">
+            <flux:badge color="amber" size="sm" icon="exclamation-triangle">{{ __('Verouderd') }}</flux:badge>
         </flux:tooltip>
     @endif
 

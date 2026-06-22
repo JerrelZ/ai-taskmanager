@@ -1,4 +1,4 @@
-<div class="flex h-full w-full flex-1 flex-col overflow-hidden">
+<div class="flex h-full w-full flex-1 flex-col overflow-hidden" wire:poll.10s="pollBoard">
     {{-- Header --}}
     <div class="flex flex-col gap-3 border-b border-zinc-200 px-4 py-4 lg:px-6 dark:border-zinc-700">
         <div class="flex items-center justify-between gap-4">

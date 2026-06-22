@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\TaskPriority;
 use App\Enums\TaskReadiness;
 use App\Enums\TaskStatus;
+use App\Events\TaskBoardUpdated;
 use App\Jobs\AssessTaskPromptReadiness;
 use App\Services\TaskPromptBuilder;
 use Carbon\CarbonInterface;
@@ -22,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $project_id
  * @property int|null $number
+ * @property string|null $linear_id
  * @property int|null $parent_id
  * @property string $title
  * @property string|null $description
@@ -30,7 +32,6 @@ use Illuminate\Support\Carbon;
  * @property int|null $assignee_id
  * @property Carbon|null $due_date
  * @property int $position
- * @property int $rank
  * @property Carbon|null $reviewed_at
  * @property TaskReadiness|null $ai_readiness
  * @property list<string>|null $ai_missing
@@ -49,6 +50,7 @@ class Task extends Model
         'project_id',
         'email_thread_id',
         'number',
+        'linear_id',
         'parent_id',
         'title',
         'description',
@@ -57,7 +59,6 @@ class Task extends Model
         'assignee_id',
         'due_date',
         'position',
-        'rank',
         'reviewed_at',
         'ai_readiness',
         'ai_missing',
@@ -166,6 +167,58 @@ class Task extends Model
     public function scopeRoots(Builder $query): void
     {
         $query->whereNull('parent_id');
+    }
+
+    /**
+     * The next free position at the end of a status column, shared across every
+     * project in the workspace. Root tasks are ordered globally per status so
+     * the project board and the all-tickets board stay in sync.
+     */
+    public static function nextRootPosition(int $workspaceId, string $status): int
+    {
+        return (int) static::query()
+            ->roots()
+            ->where('status', $status)
+            ->whereHas('project', fn (Builder $q) => $q->where('workspace_id', $workspaceId))
+            ->max('position') + 1;
+    }
+
+    /**
+     * Re-rank a root task inside its workspace-global status column using
+     * neighbour anchoring, so the order stays consistent even when the visible
+     * list is filtered or only shows a single project.
+     *
+     * Pass the ids displayed directly above and below the drop slot; the task is
+     * spliced between them in the global sequence and the column is renumbered.
+     */
+    public static function reorderInStatus(int $workspaceId, string $status, int $taskId, ?int $anchorAboveId, ?int $anchorBelowId = null): void
+    {
+        $ids = static::query()
+            ->roots()
+            ->where('status', $status)
+            ->whereHas('project', fn (Builder $q) => $q->where('workspace_id', $workspaceId))
+            ->orderBy('position')
+            ->orderBy('id')
+            ->pluck('id')
+            ->reject(fn ($id) => $id === $taskId)
+            ->values()
+            ->all();
+
+        $insertAt = 0;
+
+        if ($anchorAboveId !== null && ($above = array_search($anchorAboveId, $ids, true)) !== false) {
+            $insertAt = $above + 1;
+        } elseif ($anchorBelowId !== null && ($below = array_search($anchorBelowId, $ids, true)) !== false) {
+            $insertAt = $below;
+        }
+
+        array_splice($ids, $insertAt, 0, [$taskId]);
+
+        foreach ($ids as $position => $id) {
+            static::whereKey($id)->update(['position' => $position]);
+        }
+
+        TaskBoardUpdated::dispatch($workspaceId);
     }
 
     /**

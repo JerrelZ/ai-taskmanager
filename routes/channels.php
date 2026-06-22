@@ -13,3 +13,8 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 Broadcast::channel('conversation.{conversation}', function (User $user, Conversation $conversation) {
     return $conversation->canAccess($user);
 });
+
+// Live ticket board: only members of the workspace may subscribe to its stream.
+Broadcast::channel('workspace.{workspaceId}.board', function (User $user, int $workspaceId) {
+    return (int) $user->workspace_id === (int) $workspaceId;
+});

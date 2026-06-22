@@ -1,10 +1,10 @@
-<div class="flex h-full w-full flex-1 flex-col overflow-hidden">
+<div class="flex h-full w-full flex-1 flex-col overflow-hidden" wire:poll.10s="pollBoard">
     {{-- Header --}}
     <div class="flex flex-col gap-3 border-b border-zinc-200 px-4 py-4 lg:px-6 dark:border-zinc-700">
         <div class="flex items-end justify-between gap-4">
             <div>
                 <h1 class="font-display text-3xl leading-none text-zinc-900 lg:text-4xl dark:text-zinc-50">{{ __('Alle tickets') }}</h1>
-                <flux:subheading class="mt-1.5">{{ __('Sleep om prioriteit te bepalen over alle projecten heen.') }}</flux:subheading>
+                <flux:subheading class="mt-1.5">{{ __('Sleep kaarten tussen kolommen en projecten om prioriteit te bepalen — die volgorde geldt ook op het projectbord.') }}</flux:subheading>
             </div>
             <span class="font-display text-3xl leading-none text-zinc-400">{{ $this->tickets->count() }}</span>
         </div>
@@ -123,51 +123,65 @@
         </div>
     @endif
 
-    <div class="flex-1 overflow-y-auto">
-        {{-- "Nu" block --}}
-        @if ($this->nowTask)
-            @php $now = $this->nowTask; @endphp
-            <div class="border-b border-zinc-200 px-4 py-6 lg:px-6 dark:border-zinc-800">
-                <div class="flex items-end gap-4">
-                    <div class="min-w-0 flex-1">
-                        <div class="mb-1 flex items-center gap-2">
-                            <span class="inline-flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-brand-600 dark:text-brand-400">
-                                <span class="size-1.5 rounded-full bg-brand-500"></span>
-                                {{ __('Nu aan werken') }}
-                            </span>
-                            <span class="flex items-center gap-1 text-xs text-zinc-400">
-                                <span class="size-1.5 rounded-full bg-{{ $now->project->color }}-500"></span>
-                                {{ $now->project->name }}
-                            </span>
-                        </div>
-                        <button type="button" wire:click="openTask({{ $now->id }})" class="block max-w-full truncate text-start font-display text-3xl leading-tight text-zinc-900 hover:text-brand-700 dark:text-zinc-50 dark:hover:text-brand-300">
-                            {{ $now->title }}
-                        </button>
+    {{-- "Nu" block --}}
+    @if ($this->nowTask)
+        @php $now = $this->nowTask; @endphp
+        <div class="border-b border-zinc-200 px-4 py-5 lg:px-6 dark:border-zinc-800">
+            <div class="flex items-end gap-4">
+                <div class="min-w-0 flex-1">
+                    <div class="mb-1 flex items-center gap-2">
+                        <span class="inline-flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-brand-600 dark:text-brand-400">
+                            <span class="size-1.5 rounded-full bg-brand-500"></span>
+                            {{ __('Nu aan werken') }}
+                        </span>
+                        <span class="flex items-center gap-1 text-xs text-zinc-400">
+                            <span class="size-1.5 rounded-full bg-{{ $now->project->color }}-500"></span>
+                            {{ $now->project->name }}
+                        </span>
                     </div>
-                    <div class="flex shrink-0 items-center gap-2">
-                        @if (auth()->user()?->canCopyPrompt())
-                            <flux:button wire:click="copyPrompt({{ $now->id }})" size="sm" variant="subtle" icon="clipboard-document">{{ __('Prompt') }}</flux:button>
-                        @endif
-                        <flux:button wire:click="openTask({{ $now->id }})" size="sm" variant="primary">{{ __('Openen') }}</flux:button>
-                    </div>
+                    <button type="button" wire:click="openTask({{ $now->id }})" class="block max-w-full truncate text-start font-display text-2xl leading-tight text-zinc-900 hover:text-brand-700 lg:text-3xl dark:text-zinc-50 dark:hover:text-brand-300">
+                        {{ $now->title }}
+                    </button>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                    @if (auth()->user()?->canCopyPrompt())
+                        <flux:button wire:click="copyPrompt({{ $now->id }})" size="sm" variant="subtle" icon="clipboard-document">{{ __('Prompt') }}</flux:button>
+                    @endif
+                    <flux:button wire:click="openTask({{ $now->id }})" size="sm" variant="primary">{{ __('Openen') }}</flux:button>
                 </div>
             </div>
-        @endif
+        </div>
+    @endif
 
-        {{-- Ranked list --}}
-        @if ($this->tickets->isEmpty())
-            <div class="flex flex-col items-center justify-center gap-2 py-20 text-center">
-                <flux:icon name="inbox" class="size-10 text-zinc-300 dark:text-zinc-600" />
-                <flux:heading>{{ __('Geen tickets') }}</flux:heading>
-                <flux:subheading>{{ __('Pas je filters aan of maak een ticket aan in een project.') }}</flux:subheading>
-            </div>
-        @else
-            <div wire:sort="reorder" class="divide-y divide-zinc-100 dark:divide-zinc-800">
-                @foreach ($this->tickets as $task)
-                    @include('livewire.partials.ticket-row', ['task' => $task])
-                @endforeach
-            </div>
-        @endif
+    {{-- Cross-project board: status columns, every project mixed. --}}
+    <div class="flex-1 overflow-x-auto overflow-y-hidden">
+        <div class="flex h-full gap-4 p-4">
+            @foreach ($this->statuses() as $status)
+                @php $columnTasks = $this->columns[$status->value]; @endphp
+                <div wire:key="ticket-col-{{ $status->value }}" class="flex h-full w-80 shrink-0 flex-col rounded-xl bg-zinc-50 dark:bg-zinc-900/50">
+                    <div class="flex items-center gap-2 px-3 py-3">
+                        <span class="size-2.5 rounded-full bg-{{ $status->color() }}-500"></span>
+                        <flux:heading size="sm">{{ $status->label() }}</flux:heading>
+                        <flux:badge size="sm" variant="pill">{{ $columnTasks->count() }}</flux:badge>
+                    </div>
+
+                    <div
+                        wire:sort="moveTask"
+                        wire:sort:group="tickets"
+                        wire:sort:group-id="{{ $status->value }}"
+                        class="flex-1 space-y-2 overflow-y-auto px-2 pb-3"
+                    >
+                        @foreach ($columnTasks as $task)
+                            @include('livewire.tickets.partials.ticket-card', ['task' => $task])
+                        @endforeach
+
+                        @if ($columnTasks->isEmpty())
+                            <p class="px-2 py-6 text-center text-xs text-zinc-400 dark:text-zinc-600">{{ __('Geen tickets') }}</p>
+                        @endif
+                    </div>
+                </div>
+            @endforeach
+        </div>
     </div>
 
     <livewire:tasks.task-detail />

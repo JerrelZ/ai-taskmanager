@@ -66,7 +66,7 @@ class Ready extends Component
             ->with(['project', 'assignee', 'labels', 'subtasks'])
             ->withCount('comments')
             ->when($this->projectFilter, fn ($q) => $q->where('project_id', $this->projectFilter))
-            ->orderBy('rank')
+            ->orderBy('position')
             ->orderBy('id');
     }
 

@@ -68,13 +68,13 @@ it('refuses to mark a foreign task as reviewed from the tickets list', function 
     expect($taskB->fresh()->reviewed_at)->toBeNull();
 });
 
-it('does not rank a foreign task when reordering', function () {
+it('does not reorder a foreign task on the global board', function () {
     [$userA, $taskB] = twoWorkspaces();
-    $rankBefore = $taskB->rank;
+    $positionBefore = $taskB->position;
 
-    Livewire::actingAs($userA)->test(TicketsIndex::class)->call('reorder', $taskB->id, 0);
+    Livewire::actingAs($userA)->test(TicketsIndex::class)->call('moveTask', $taskB->id, 0, $taskB->status->value);
 
-    expect($taskB->fresh()->rank)->toBe($rankBefore);
+    expect($taskB->fresh()->position)->toBe($positionBefore);
 });
 
 it('hides another client\'s task from a client in the same workspace', function () {

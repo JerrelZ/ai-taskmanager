@@ -10,6 +10,7 @@
                         <span class="truncate">{{ $task->project->name }}</span>
                     </a>
                     <span class="shrink-0 font-mono text-xs tracking-tight text-zinc-400">{{ $task->identifier() }}</span>
+                    @include('livewire.partials.linear-badge', ['task' => $task])
                     @if ($task->isSubtask() && $task->parent)
                         <flux:icon name="chevron-right" variant="micro" class="shrink-0" />
                         <flux:link wire:click="open({{ $task->parent->id }})" class="cursor-pointer truncate">

@@ -31,7 +31,6 @@ class TaskFactory extends Factory
             'assignee_id' => fake()->boolean(70) ? User::factory() : null,
             'due_date' => fake()->boolean(50) ? fake()->dateTimeBetween('-1 week', '+3 weeks')->format('Y-m-d') : null,
             'position' => 0,
-            'rank' => 0,
             'reviewed_at' => null,
             'created_by' => User::factory(),
         ];

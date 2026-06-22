@@ -4,7 +4,9 @@ namespace App\Livewire\Tickets;
 
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
+use App\Events\TaskBoardUpdated;
 use App\Livewire\Concerns\CopiesTaskPrompt;
+use App\Livewire\Concerns\PollsLiveBoard;
 use App\Models\Label;
 use App\Models\Project;
 use App\Models\Task;
@@ -12,10 +14,10 @@ use App\Models\User;
 use App\Support\TaskActivity;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
-use Livewire\Attributes\On;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -24,6 +26,7 @@ use Livewire\Component;
 class Index extends Component
 {
     use CopiesTaskPrompt;
+    use PollsLiveBoard;
 
     #[Url]
     public string $search = '';
@@ -49,8 +52,14 @@ class Index extends Component
     /** @var array<int, int> Ticket ids currently selected for a bulk action. */
     public array $selectedTickets = [];
 
+    public function mount(): void
+    {
+        $this->rememberBoardSignature();
+    }
+
     /**
-     * Filtered, globally ranked root tickets across all projects.
+     * Filtered root tickets across all visible projects, ordered by their
+     * workspace-global position within each status column.
      *
      * @return Collection<int, Task>
      */
@@ -70,7 +79,7 @@ class Index extends Component
             ->when($this->priorityFilter, fn ($q) => $q->where('priority', $this->priorityFilter))
             ->when($this->labelFilter, fn ($q) => $q->whereHas('labels', fn ($l) => $l->whereKey($this->labelFilter)))
             ->when($this->search !== '', fn ($q) => $q->where('title', 'like', '%'.$this->search.'%'))
-            ->orderBy('rank')
+            ->orderBy('position')
             ->orderBy('id')
             ->get();
 
@@ -82,19 +91,59 @@ class Index extends Component
     }
 
     /**
-     * The single highest-priority actionable ticket — "work on this now".
+     * Visible tickets grouped per status column, mixing every project.
+     *
+     * @return array<string, Collection<int, Task>>
+     */
+    #[Computed]
+    public function columns(): array
+    {
+        $grouped = [];
+
+        foreach ($this->statuses() as $status) {
+            $grouped[$status->value] = $this->tickets->where('status', $status)->values();
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Status columns to render. Completed columns only show when toggled on.
+     *
+     * @return array<int, TaskStatus>
+     */
+    public function statuses(): array
+    {
+        if ($this->showCompleted) {
+            return TaskStatus::cases();
+        }
+
+        return [TaskStatus::Backlog, TaskStatus::Todo, TaskStatus::InProgress];
+    }
+
+    /**
+     * The single ticket to work on now: the top of the most active actionable
+     * column (In Progress, then Todo, then Backlog).
      */
     #[Computed]
     public function nowTask(): ?Task
     {
-        return Task::query()
-            ->roots()
-            ->actionable()
-            ->whereHas('project', fn ($q) => $q->visibleTo(Auth::user())->active())
-            ->with('project')
-            ->orderBy('rank')
-            ->orderBy('id')
-            ->first();
+        foreach ([TaskStatus::InProgress, TaskStatus::Todo, TaskStatus::Backlog] as $status) {
+            $task = Task::query()
+                ->roots()
+                ->where('status', $status->value)
+                ->whereHas('project', fn ($q) => $q->visibleTo(Auth::user())->active())
+                ->with('project')
+                ->orderBy('position')
+                ->orderBy('id')
+                ->first();
+
+            if ($task !== null) {
+                return $task;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -148,57 +197,48 @@ class Index extends Component
     }
 
     /**
-     * Drag-and-drop: set a ticket's absolute rank across all projects.
+     * Drag-and-drop across the all-tickets board: move a ticket to a status
+     * column and set its workspace-global priority within that column.
      *
-     * Uses neighbour-anchoring so the new order is consistent even when
-     * the visible list is filtered.
+     * Neighbour-anchored so the order stays consistent under active filters,
+     * and shared with each project board (same `position` field).
      */
-    public function reorder(int $id, int $position): void
+    public function moveTask(int $id, int $position, string $status): void
     {
-        // Global priority ordering is a team concept.
+        // Cross-project priority ordering is a team concept.
         if (! Auth::user()->isTeam()) {
             return;
         }
 
-        // Never rank a task outside the user's workspace, even with a forged id.
-        $visibleInWorkspace = fn ($q) => $q->whereHas('project', fn ($p) => $p->visibleTo(Auth::user()));
+        $task = Task::query()
+            ->roots()
+            ->whereHas('project', fn ($q) => $q->visibleTo(Auth::user()))
+            ->find($id);
 
-        if (! Task::query()->tap($visibleInWorkspace)->whereKey($id)->exists()) {
+        if ($task === null) {
             return;
         }
 
-        $displayed = $this->tickets->pluck('id')->reject(fn ($x) => $x === $id)->values()->all();
+        $newStatus = TaskStatus::from($status);
 
-        $position = max(0, min($position, count($displayed)));
-        $anchorAboveId = $position > 0 ? $displayed[$position - 1] : null;
-
-        $global = Task::query()
-            ->tap($visibleInWorkspace)
-            ->roots()
-            ->actionable()
-            ->orderBy('rank')
-            ->orderBy('id')
+        $displayed = $this->columns[$newStatus->value]
             ->pluck('id')
-            ->reject(fn ($x) => $x === $id)
+            ->reject(fn ($x) => $x === $task->id)
             ->values()
             ->all();
 
-        if ($anchorAboveId === null) {
-            array_unshift($global, $id);
-        } else {
-            $index = array_search($anchorAboveId, $global, true);
-            if ($index === false) {
-                $global[] = $id;
-            } else {
-                array_splice($global, $index + 1, 0, [$id]);
-            }
+        $position = max(0, min($position, count($displayed)));
+        $anchorAbove = $position > 0 ? $displayed[$position - 1] : null;
+        $anchorBelow = $position < count($displayed) ? $displayed[$position] : null;
+
+        if ($task->status !== $newStatus) {
+            TaskActivity::log($task, 'status', ['from' => $task->status->label(), 'to' => $newStatus->label()]);
+            $task->update(['status' => $newStatus]);
         }
 
-        foreach ($global as $newRank => $taskId) {
-            Task::whereKey($taskId)->update(['rank' => $newRank]);
-        }
+        Task::reorderInStatus($task->project->workspace_id, $newStatus->value, $task->id, $anchorAbove, $anchorBelow);
 
-        unset($this->tickets, $this->nowTask);
+        unset($this->tickets, $this->columns, $this->nowTask);
     }
 
     public function markReviewed(int $id): void
@@ -211,7 +251,7 @@ class Index extends Component
 
         TaskActivity::log($task, 'reviewed');
 
-        unset($this->tickets);
+        unset($this->tickets, $this->columns);
 
         Flux::toast(text: __('Gemarkeerd als bijgewerkt.'));
     }
@@ -234,7 +274,7 @@ class Index extends Component
         TaskActivity::log($task, 'priority', ['from' => $task->priority->label(), 'to' => $newPriority->label()]);
         $task->update(['priority' => $newPriority]);
 
-        unset($this->tickets, $this->nowTask);
+        unset($this->tickets, $this->columns, $this->nowTask);
     }
 
     /**
@@ -249,10 +289,14 @@ class Index extends Component
             return;
         }
 
-        TaskActivity::log($task, 'status', ['from' => $task->status->label(), 'to' => $newStatus->label()]);
-        $task->update(['status' => $newStatus]);
+        $position = Task::nextRootPosition($task->project->workspace_id, $newStatus->value);
 
-        unset($this->tickets, $this->nowTask);
+        TaskActivity::log($task, 'status', ['from' => $task->status->label(), 'to' => $newStatus->label()]);
+        $task->update(['status' => $newStatus, 'position' => $position]);
+
+        TaskBoardUpdated::dispatch($task->project->workspace_id);
+
+        unset($this->tickets, $this->columns, $this->nowTask);
     }
 
     /**
@@ -275,7 +319,7 @@ class Index extends Component
         TaskActivity::log($task, 'assignee', ['to' => $userId ? User::find($userId)?->name : null]);
         $task->update(['assignee_id' => $userId]);
 
-        unset($this->tickets, $this->nowTask);
+        unset($this->tickets, $this->columns, $this->nowTask);
     }
 
     /**
@@ -297,7 +341,7 @@ class Index extends Component
         TaskActivity::log($task, 'due', ['to' => $due]);
         $task->update(['due_date' => $due]);
 
-        unset($this->tickets, $this->nowTask);
+        unset($this->tickets, $this->columns, $this->nowTask);
     }
 
     /**
@@ -313,7 +357,7 @@ class Index extends Component
 
         $task->labels()->toggle($labelId);
 
-        unset($this->tickets);
+        unset($this->tickets, $this->columns);
     }
 
     /**
@@ -471,8 +515,9 @@ class Index extends Component
     private function afterBulk(string $message): void
     {
         $this->selectedTickets = [];
-        unset($this->tickets, $this->nowTask);
+        unset($this->tickets, $this->columns, $this->nowTask);
         $this->dispatch('task-saved');
+        TaskBoardUpdated::dispatch(Auth::user()->workspace_id);
 
         Flux::toast(variant: 'success', text: $message);
     }
@@ -482,10 +527,41 @@ class Index extends Component
         $this->dispatch('open-task', taskId: $taskId);
     }
 
-    #[On('task-saved')]
+    /**
+     * Refresh on the local save event and on the workspace's live board stream,
+     * so a reorder by a teammate (or this user in another tab) shows up at once.
+     *
+     * @return array<string, string>
+     */
+    public function getListeners(): array
+    {
+        $workspaceId = Auth::user()->workspace_id;
+
+        return [
+            'task-saved' => 'refreshList',
+            "echo-private:workspace.{$workspaceId}.board,.board.updated" => 'refreshList',
+        ];
+    }
+
     public function refreshList(): void
     {
-        unset($this->tickets, $this->nowTask);
+        $this->forgetBoardCache();
+        $this->rememberBoardSignature();
+    }
+
+    /**
+     * @return Builder<Task>
+     */
+    protected function boardSignatureScope(): Builder
+    {
+        return Task::query()
+            ->roots()
+            ->whereHas('project', fn ($q) => $q->visibleTo(Auth::user())->active());
+    }
+
+    protected function forgetBoardCache(): void
+    {
+        unset($this->tickets, $this->columns, $this->nowTask);
     }
 
     public function render(): View

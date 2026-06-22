@@ -18,11 +18,11 @@ beforeEach(function () {
     $this->project = Project::factory()->create();
 });
 
-test('the tickets view lists actionable tickets across projects ordered by rank', function () {
+test('a status column orders tickets across projects by their shared position', function () {
     $other = Project::factory()->create();
 
-    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Eerste', 'rank' => 0]);
-    Task::factory()->for($other)->status(TaskStatus::Backlog)->create(['title' => 'Tweede', 'rank' => 1]);
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Eerste', 'position' => 0]);
+    Task::factory()->for($other)->status(TaskStatus::Todo)->create(['title' => 'Tweede', 'position' => 1]);
 
     Livewire::test(Index::class)
         ->assertSeeInOrder(['Eerste', 'Tweede']);
@@ -48,28 +48,50 @@ test('subtasks never appear in the global tickets list', function () {
         ->assertDontSee('Child ticket');
 });
 
-test('the now task is the highest ranked actionable ticket', function () {
-    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Lager', 'rank' => 5]);
-    $top = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Bovenaan', 'rank' => 0]);
+test('the now task is the top of the most active column', function () {
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Lager', 'position' => 5]);
+    $top = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Bovenaan', 'position' => 0]);
 
     Livewire::test(Index::class)
         ->assertSet('nowTask.id', $top->id);
 });
 
-test('reordering sets absolute global rank across projects', function () {
-    $other = Project::factory()->create();
-
-    $a = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['rank' => 0]);
-    $b = Task::factory()->for($other)->status(TaskStatus::Todo)->create(['rank' => 1]);
-    $c = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['rank' => 2]);
+test('an in-progress ticket outranks the todo column for the now task', function () {
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['position' => 0]);
+    $busy = Task::factory()->for($this->project)->status(TaskStatus::InProgress)->create(['position' => 0]);
 
     Livewire::test(Index::class)
-        ->call('reorder', $c->id, 0);
+        ->assertSet('nowTask.id', $busy->id);
+});
 
-    $order = Task::query()->roots()->actionable()->orderBy('rank')->pluck('id')->all();
+test('moving a ticket sets its workspace-global position across projects', function () {
+    $other = Project::factory()->create();
+
+    $a = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['position' => 0]);
+    $b = Task::factory()->for($other)->status(TaskStatus::Todo)->create(['position' => 1]);
+    $c = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['position' => 2]);
+
+    Livewire::test(Index::class)
+        ->call('moveTask', $c->id, 0, 'todo');
+
+    $order = Task::query()->roots()->where('status', 'todo')->orderBy('position')->pluck('id')->all();
 
     expect($order)->toBe([$c->id, $a->id, $b->id])
-        ->and($c->refresh()->rank)->toBe(0);
+        ->and($c->refresh()->position)->toBe(0);
+});
+
+test('reordering on the global board is reflected on the project board', function () {
+    $a = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Project A1', 'position' => 0]);
+    Task::factory()->for(Project::factory()->create())->status(TaskStatus::Todo)->create(['title' => 'Other', 'position' => 1]);
+    $b = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Project A2', 'position' => 2]);
+
+    // Pull A2 above A1 on the global board (slot 0 of the Todo column).
+    Livewire::test(Index::class)->call('moveTask', $b->id, 0, 'todo');
+
+    // The project board, ordered by the same position, shows A2 before A1.
+    $projectOrder = $this->project->rootTasks()->where('status', 'todo')->orderBy('position')->pluck('id')->all();
+
+    expect($projectOrder)->toBe([$b->id, $a->id]);
 });
 
 test('a filter can limit tickets by project', function () {
@@ -264,10 +286,10 @@ test('a client cannot bulk edit even tickets they can see', function () {
 });
 
 test('the only-stale filter shows only stale tickets', function () {
-    // Rank the stale ticket first so the "now" block shows it, not the fresh one.
-    $stale = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Oude ticket', 'rank' => 0]);
+    // Position the stale ticket first so the "now" block shows it, not the fresh one.
+    $stale = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Oude ticket', 'position' => 0]);
     $stale->forceFill(['updated_at' => now()->subDays(30)])->saveQuietly();
-    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Verse ticket', 'rank' => 1]);
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Verse ticket', 'position' => 1]);
 
     Livewire::test(Index::class)
         ->set('onlyStale', true)
