@@ -69,7 +69,7 @@
                             class="flex-1 space-y-2 overflow-y-auto px-2 pb-2"
                         >
                             @foreach ($tasks as $task)
-                                @include('livewire.projects.partials.task-card', ['task' => $task])
+                                @include('livewire.partials.task-card', ['task' => $task])
                             @endforeach
                         </div>
 

@@ -484,6 +484,50 @@ class Index extends Component
         $this->afterBulk(__('Label toegevoegd aan :count tickets.', ['count' => count($this->selectedTickets)]));
     }
 
+    public function bulkSetProject(int $projectId): void
+    {
+        if (! Auth::user()->isTeam()) {
+            return;
+        }
+
+        $project = $this->projects()->firstWhere('id', $projectId);
+
+        if ($project === null) {
+            return;
+        }
+
+        foreach ($this->selectedTasks() as $task) {
+            if ($task->project_id === $project->id) {
+                continue;
+            }
+
+            $from = $task->project->name;
+            $this->moveTaskToProject($task, $project);
+            TaskActivity::log($task, 'project', ['from' => $from, 'to' => $project->name]);
+        }
+
+        $this->afterBulk(__(':count tickets verplaatst naar :project.', [
+            'count' => count($this->selectedTickets),
+            'project' => $project->name,
+        ]));
+    }
+
+    /**
+     * Move a task and its subtasks to another project, giving each a fresh
+     * per-project number so identifiers stay unique in the target project.
+     */
+    private function moveTaskToProject(Task $task, Project $project): void
+    {
+        $task->update([
+            'project_id' => $project->id,
+            'number' => (int) Task::where('project_id', $project->id)->max('number') + 1,
+        ]);
+
+        foreach ($task->subtasks as $subtask) {
+            $this->moveTaskToProject($subtask, $project);
+        }
+    }
+
     public function bulkMarkReviewed(): void
     {
         if (! Auth::user()->isTeam()) {

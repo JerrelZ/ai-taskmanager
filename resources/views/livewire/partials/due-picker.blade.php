@@ -16,6 +16,7 @@
             'flex shrink-0 cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-xs transition hover:bg-zinc-100 dark:hover:bg-zinc-700',
             'text-red-500' => $overdue,
             'text-zinc-400' => ! $overdue,
+            'opacity-0 group-hover:opacity-100 focus-visible:opacity-100' => ! $hasDue,
         ])
     >
         <flux:icon name="calendar" variant="micro" />

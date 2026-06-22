@@ -7,7 +7,10 @@
         type="button"
         x-on:click.stop
         aria-label="{{ __('Toewijzen') }}"
-        class="flex shrink-0 cursor-pointer items-center justify-center rounded-full transition hover:opacity-80"
+        @class([
+            'flex shrink-0 cursor-pointer items-center justify-center rounded-full transition hover:opacity-80',
+            'opacity-0 group-hover:opacity-100 focus-visible:opacity-100' => ! $task->assignee,
+        ])
     >
         @if ($task->assignee)
             <flux:avatar size="xs" circle :name="$task->assignee->name" :initials="$task->assignee->initials()" />

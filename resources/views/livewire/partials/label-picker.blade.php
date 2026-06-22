@@ -8,7 +8,10 @@
         type="button"
         x-on:click.stop
         aria-label="{{ __('Labels aanpassen') }}"
-        class="flex shrink-0 cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-xs text-zinc-400 transition hover:bg-zinc-100 dark:hover:bg-zinc-700"
+        @class([
+            'flex shrink-0 cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-xs text-zinc-400 transition hover:bg-zinc-100 dark:hover:bg-zinc-700',
+            'opacity-0 group-hover:opacity-100 focus-visible:opacity-100' => $task->labels->isEmpty(),
+        ])
     >
         @if ($task->labels->isNotEmpty())
             @foreach ($task->labels->take(3) as $label)

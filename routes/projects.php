@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\TicketController;
 use App\Livewire\Clients\Index as ClientsIndex;
 use App\Livewire\Email\Inbox as EmailInbox;
 use App\Livewire\Messages\Index as MessagesIndex;
@@ -14,6 +15,12 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth'])->group(function () {
     Route::livewire('tickets', TicketsIndex::class)->name('tickets.index');
     Route::livewire('tickets/ready', TicketsReady::class)->name('tickets.ready');
+
+    // Canonical, shareable ticket URL (e.g. /tickets/WEB-12/inlog-knop-stuk).
+    // The trailing slug is decorative; the identifier resolves the ticket.
+    Route::get('tickets/{identifier}/{slug?}', [TicketController::class, 'show'])
+        ->where('identifier', '[A-Za-z0-9]+-[0-9]+')
+        ->name('tickets.show');
     Route::livewire('messages', MessagesIndex::class)->name('messages.index');
     Route::livewire('projects', Index::class)->name('projects.index');
     Route::livewire('projects/{project}', Board::class)->name('projects.board');

@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 /**
  * @property int $id
@@ -50,6 +51,7 @@ class Task extends Model
         'project_id',
         'email_thread_id',
         'number',
+        'previous_identifiers',
         'linear_id',
         'parent_id',
         'title',
@@ -87,6 +89,26 @@ class Task extends Model
             AssessTaskPromptReadiness::dispatch($task->id);
         });
 
+        // Moving a ticket to another project changes its identifier (key + a
+        // fresh per-project number). Remember the old identifier so links to it
+        // keep resolving via a redirect.
+        static::updating(function (Task $task): void {
+            if (! $task->isDirty('project_id')) {
+                return;
+            }
+
+            $oldKey = Project::whereKey($task->getOriginal('project_id'))->value('key');
+            $oldNumber = $task->getOriginal('number') ?? $task->getOriginal('id');
+            $oldIdentifier = ($oldKey ? $oldKey.'-' : '#').$oldNumber;
+
+            $history = $task->previous_identifiers ?? [];
+
+            if (! in_array($oldIdentifier, $history, true)) {
+                $history[] = $oldIdentifier;
+                $task->previous_identifiers = $history;
+            }
+        });
+
         static::updated(function (Task $task): void {
             if ($task->wasChanged(['title', 'description', 'project_id'])) {
                 AssessTaskPromptReadiness::dispatch($task->id);
@@ -102,6 +124,30 @@ class Task extends Model
         $key = $this->relationLoaded('project') ? $this->project?->key : $this->project()->value('key');
 
         return ($key ? $key.'-' : '#').($this->number ?? $this->id);
+    }
+
+    /**
+     * Decorative, human-readable slug for the ticket URL (the identifier does
+     * the actual lookup, so this can safely drift when the title changes).
+     */
+    public function ticketSlug(): string
+    {
+        return Str::slug($this->title) ?: 'ticket';
+    }
+
+    /**
+     * Canonical, shareable URL for this ticket. Falls back to the project board
+     * deep link for tickets in a project without a key (identifier like "#12").
+     */
+    public function ticketUrl(): string
+    {
+        $key = $this->relationLoaded('project') ? $this->project?->key : $this->project()->value('key');
+
+        if (! $key) {
+            return route('projects.board', ['project' => $this->project_id, 'openTask' => $this->id]);
+        }
+
+        return route('tickets.show', ['identifier' => $this->identifier(), 'slug' => $this->ticketSlug()]);
     }
 
     /**
@@ -146,6 +192,7 @@ class Task extends Model
             'ai_readiness' => TaskReadiness::class,
             'ai_missing' => 'array',
             'ai_assessed_at' => 'datetime',
+            'previous_identifiers' => 'array',
         ];
     }
 

@@ -115,6 +115,21 @@
                 </flux:dropdown>
             @endif
 
+            {{-- Project --}}
+            <flux:dropdown position="bottom" align="end">
+                <flux:button size="sm" variant="subtle" icon:trailing="chevron-down">{{ __('Project') }}</flux:button>
+                <flux:menu class="max-h-72 overflow-y-auto">
+                    @foreach ($this->projects() as $project)
+                        <flux:menu.item wire:click="bulkSetProject({{ $project->id }})">
+                            <span class="flex items-center gap-2">
+                                <span class="size-2 rounded-full bg-{{ $project->color }}-500"></span>
+                                {{ $project->name }}
+                            </span>
+                        </flux:menu.item>
+                    @endforeach
+                </flux:menu>
+            </flux:dropdown>
+
             <flux:button wire:click="bulkMarkReviewed" size="sm" variant="subtle" icon="check">{{ __('Bijgewerkt') }}</flux:button>
 
             <flux:button wire:click="bulkDelete" wire:confirm="{{ __('Geselecteerde tickets verwijderen?') }}" size="sm" variant="danger" icon="trash">{{ __('Verwijderen') }}</flux:button>
@@ -172,7 +187,13 @@
                         class="flex-1 space-y-2 overflow-y-auto px-2 pb-3"
                     >
                         @foreach ($columnTasks as $task)
-                            @include('livewire.tickets.partials.ticket-card', ['task' => $task])
+                            @include('livewire.partials.task-card', [
+                                'task' => $task,
+                                'showProject' => true,
+                                'canSelect' => auth()->user()?->isTeam(),
+                                'showStale' => true,
+                                'selectedTickets' => $selectedTickets,
+                            ])
                         @endforeach
 
                         @if ($columnTasks->isEmpty())

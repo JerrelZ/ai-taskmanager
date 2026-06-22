@@ -3,12 +3,16 @@
     the priority can be changed inline. Works in any Livewire component that
     exposes a `setPriority(int $id, string $priority)` action (Board, Tickets).
 --}}
+@php $isUnset = $task->priority === \App\Enums\TaskPriority::None; @endphp
 <flux:dropdown wire:sort:ignore position="bottom" align="start">
     <button
         type="button"
         x-on:click.stop
         aria-label="{{ __('Prioriteit aanpassen') }}"
-        class="-m-0.5 flex shrink-0 cursor-pointer items-center justify-center rounded p-0.5 transition hover:bg-zinc-100 dark:hover:bg-zinc-700"
+        @class([
+            '-m-0.5 flex shrink-0 cursor-pointer items-center justify-center rounded p-0.5 transition hover:bg-zinc-100 dark:hover:bg-zinc-700',
+            'opacity-0 group-hover:opacity-100 focus-visible:opacity-100' => $isUnset,
+        ])
     >
         <flux:icon :name="$task->priority->icon()" variant="micro" class="text-{{ $task->priority->color() }}-500" />
     </button>

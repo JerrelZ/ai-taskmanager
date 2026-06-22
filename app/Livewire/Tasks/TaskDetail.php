@@ -412,7 +412,7 @@ class TaskDetail extends Component
             'sender' => Auth::user()->name,
             'task' => $task->identifier(),
         ]);
-        $url = route('projects.board', ['project' => $task->project_id, 'openTask' => $task->id]);
+        $url = $task->ticketUrl();
         $preview = Str::limit($body, 120);
 
         foreach ($mentioned as $user) {

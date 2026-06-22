@@ -66,6 +66,7 @@ class Activity extends Model
             'due' => isset($props['to']) && $props['to'] !== null
                 ? 'zette de deadline op '.$props['to']
                 : 'haalde de deadline weg',
+            'project' => 'verplaatste naar '.($props['to'] ?? '?'),
             'reviewed' => 'markeerde als bijgewerkt',
             'comment' => 'plaatste een reactie',
             default => $this->type,

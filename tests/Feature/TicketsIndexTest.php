@@ -259,6 +259,38 @@ test('bulk deleting removes every selected ticket', function () {
         ->and(Task::find($b->id))->toBeNull();
 });
 
+test('bulk moving tickets to another project renumbers them and carries subtasks along', function () {
+    $other = Project::factory()->create();
+    // An existing ticket in the target project forces the moved ticket onto a fresh number.
+    Task::factory()->for($other)->status(TaskStatus::Todo)->create();
+
+    $task = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create();
+    $subtask = Task::factory()->for($this->project)->create(['parent_id' => $task->id]);
+
+    Livewire::test(Index::class)
+        ->set('selectedTickets', [$task->id])
+        ->call('bulkSetProject', $other->id)
+        ->assertSet('selectedTickets', []);
+
+    expect($task->refresh()->project_id)->toBe($other->id)
+        ->and($subtask->refresh()->project_id)->toBe($other->id);
+
+    $numbers = Task::where('project_id', $other->id)->pluck('number');
+    expect($numbers->count())->toBe($numbers->unique()->count());
+});
+
+test('bulk moving ignores a project the user cannot see', function () {
+    $otherWorkspace = Workspace::factory()->create();
+    $foreignProject = Project::factory()->create(['workspace_id' => $otherWorkspace->id]);
+    $task = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create();
+
+    Livewire::test(Index::class)
+        ->set('selectedTickets', [$task->id])
+        ->call('bulkSetProject', $foreignProject->id);
+
+    expect($task->refresh()->project_id)->toBe($this->project->id);
+});
+
 test('bulk actions never reach a ticket in another workspace', function () {
     $otherWorkspace = Workspace::factory()->create();
     $otherProject = Project::factory()->create(['workspace_id' => $otherWorkspace->id]);
