@@ -41,7 +41,7 @@
     </div>
     <div class="flex items-start justify-between gap-2">
         <p @class([
-            'text-sm font-medium text-zinc-800 dark:text-zinc-100',
+            'min-w-0 break-words text-sm font-medium text-zinc-800 dark:text-zinc-100',
             'line-through' => $task->status === \App\Enums\TaskStatus::Canceled,
         ])>{{ $task->title }}</p>
         @if (auth()->user()?->canCopyPrompt())
