@@ -6,6 +6,7 @@ use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Events\TaskBoardUpdated;
 use App\Livewire\Concerns\CopiesTaskPrompt;
+use App\Livewire\Concerns\LimitsBoardColumns;
 use App\Livewire\Concerns\PollsLiveBoard;
 use App\Models\Label;
 use App\Models\Project;
@@ -17,6 +18,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -26,6 +28,7 @@ use Livewire\Component;
 class Index extends Component
 {
     use CopiesTaskPrompt;
+    use LimitsBoardColumns;
     use PollsLiveBoard;
 
     #[Url]
@@ -51,6 +54,13 @@ class Index extends Component
 
     /** @var array<int, int> Ticket ids currently selected for a bulk action. */
     public array $selectedTickets = [];
+
+    /** Status column the "new ticket" modal will create into. */
+    public ?string $newTicketStatus = null;
+
+    public ?int $newTicketProjectId = null;
+
+    public string $newTicketTitle = '';
 
     public function mount(): void
     {
@@ -294,7 +304,7 @@ class Index extends Component
         TaskActivity::log($task, 'status', ['from' => $task->status->label(), 'to' => $newStatus->label()]);
         $task->update(['status' => $newStatus, 'position' => $position]);
 
-        TaskBoardUpdated::dispatch($task->project->workspace_id);
+        TaskBoardUpdated::dispatchQuietly($task->project->workspace_id);
 
         unset($this->tickets, $this->columns, $this->nowTask);
     }
@@ -561,7 +571,7 @@ class Index extends Component
         $this->selectedTickets = [];
         unset($this->tickets, $this->columns, $this->nowTask);
         $this->dispatch('task-saved');
-        TaskBoardUpdated::dispatch(Auth::user()->workspace_id);
+        TaskBoardUpdated::dispatchQuietly(Auth::user()->workspace_id);
 
         Flux::toast(variant: 'success', text: $message);
     }
@@ -569,6 +579,47 @@ class Index extends Component
     public function openTask(int $taskId): void
     {
         $this->dispatch('open-task', taskId: $taskId);
+    }
+
+    /**
+     * Open the "new ticket" modal for a status column. On this cross-project
+     * board a ticket needs a project, so default to the active project filter
+     * (or the first visible project) and let the user confirm.
+     */
+    public function openNewTicket(string $status): void
+    {
+        $this->newTicketStatus = $status;
+        $this->newTicketProjectId = $this->projectFilter ?? $this->projects()->value('id');
+        $this->newTicketTitle = '';
+        $this->resetValidation();
+
+        Flux::modal('new-ticket')->show();
+    }
+
+    public function createTicket(): void
+    {
+        $this->validate([
+            'newTicketProjectId' => ['required', Rule::in($this->projects()->pluck('id')->all())],
+            'newTicketTitle' => ['required', 'string', 'max:255'],
+        ]);
+
+        $project = $this->projects()->firstWhere('id', $this->newTicketProjectId);
+        $status = TaskStatus::from($this->newTicketStatus ?? TaskStatus::Todo->value);
+
+        $task = $project->tasks()->create([
+            'title' => trim($this->newTicketTitle),
+            'status' => $status,
+            'priority' => TaskPriority::None,
+            'position' => Task::nextRootPosition($project->workspace_id, $status->value),
+            'created_by' => Auth::id(),
+        ]);
+
+        TaskActivity::log($task, 'created');
+        TaskBoardUpdated::dispatchQuietly($project->workspace_id);
+
+        Flux::modal('new-ticket')->close();
+        $this->reset('newTicketTitle', 'newTicketStatus');
+        $this->refreshList();
     }
 
     /**

@@ -556,7 +556,7 @@ class Index extends Component
         ]);
 
         TaskActivity::log($task, 'created');
-        TaskBoardUpdated::dispatch($project->workspace_id);
+        TaskBoardUpdated::dispatchQuietly($project->workspace_id);
 
         $aiDrafted = $this->ticketAiDrafted;
         $this->reset('ticketMessageId', 'ticketProjectId', 'ticketTitle', 'ticketDescription', 'ticketAiDrafted');

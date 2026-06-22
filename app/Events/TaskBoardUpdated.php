@@ -27,6 +27,17 @@ class TaskBoardUpdated implements ShouldBroadcastNow
     public function __construct(public int $workspaceId) {}
 
     /**
+     * Dispatch the live-board broadcast without letting a broadcaster outage
+     * (e.g. Reverb being down) break the user action that triggered it. The
+     * per-board poll fallback keeps everyone in sync, so a failed broadcast is
+     * safe to swallow rather than surface as a 500.
+     */
+    public static function dispatchQuietly(int $workspaceId): void
+    {
+        rescue(fn () => static::dispatch($workspaceId), report: false);
+    }
+
+    /**
      * @return array<int, PrivateChannel>
      */
     public function broadcastOn(): array

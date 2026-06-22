@@ -7,6 +7,7 @@ use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Events\TaskBoardUpdated;
 use App\Livewire\Concerns\CopiesTaskPrompt;
+use App\Livewire\Concerns\LimitsBoardColumns;
 use App\Livewire\Concerns\PollsLiveBoard;
 use App\Models\Client;
 use App\Models\Label;
@@ -28,6 +29,7 @@ use Livewire\Component;
 class Board extends Component
 {
     use CopiesTaskPrompt;
+    use LimitsBoardColumns;
     use PollsLiveBoard;
 
     public Project $project;
@@ -61,6 +63,11 @@ class Board extends Component
 
     /** @var array<string, string> Quick-create title per status column. */
     public array $newTaskTitle = [];
+
+    /** Status column the "new ticket" modal will create into. */
+    public ?string $newTicketStatus = null;
+
+    public string $newTicketTitle = '';
 
     // Project settings form
     public string $editName = '';
@@ -298,7 +305,7 @@ class Board extends Component
         TaskActivity::log($task, 'status', ['from' => $task->status->label(), 'to' => $newStatus->label()]);
         $task->update(['status' => $newStatus, 'position' => $position]);
 
-        TaskBoardUpdated::dispatch($this->project->workspace_id);
+        TaskBoardUpdated::dispatchQuietly($this->project->workspace_id);
 
         unset($this->tasks, $this->columns);
     }
@@ -389,6 +396,39 @@ class Board extends Component
             return;
         }
 
+        $this->storeTask($status, $title);
+
+        $this->newTaskTitle[$status] = '';
+    }
+
+    /**
+     * Open the "new ticket" modal for a status column. The project is fixed on
+     * this board, so the modal only asks for a title.
+     */
+    public function openNewTicket(string $status): void
+    {
+        $this->newTicketStatus = $status;
+        $this->newTicketTitle = '';
+        $this->resetValidation();
+
+        Flux::modal('new-ticket')->show();
+    }
+
+    public function createTicket(): void
+    {
+        $this->validate(['newTicketTitle' => ['required', 'string', 'max:255']]);
+
+        $this->storeTask($this->newTicketStatus ?? TaskStatus::Todo->value, trim($this->newTicketTitle));
+
+        Flux::modal('new-ticket')->close();
+        $this->reset('newTicketTitle', 'newTicketStatus');
+    }
+
+    /**
+     * Create a root ticket in this project's column and refresh the board.
+     */
+    protected function storeTask(string $status, string $title): void
+    {
         $statusEnum = TaskStatus::from($status);
 
         $task = $this->project->tasks()->create([
@@ -401,9 +441,7 @@ class Board extends Component
 
         TaskActivity::log($task, 'created');
 
-        TaskBoardUpdated::dispatch($this->project->workspace_id);
-
-        $this->newTaskTitle[$status] = '';
+        TaskBoardUpdated::dispatchQuietly($this->project->workspace_id);
 
         unset($this->tasks, $this->columns);
     }

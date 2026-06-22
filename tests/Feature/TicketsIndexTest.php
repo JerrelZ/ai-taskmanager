@@ -328,3 +328,29 @@ test('the only-stale filter shows only stale tickets', function () {
         ->assertSee('Oude ticket')
         ->assertDontSee('Verse ticket');
 });
+
+test('the column plus creates a ticket in the chosen project and status', function () {
+    Livewire::test(Index::class)
+        ->call('openNewTicket', TaskStatus::Todo->value)
+        ->assertSet('newTicketStatus', TaskStatus::Todo->value)
+        ->set('newTicketProjectId', $this->project->id)
+        ->set('newTicketTitle', 'Nieuw vanaf bord')
+        ->call('createTicket')
+        ->assertHasNoErrors();
+
+    $task = Task::where('title', 'Nieuw vanaf bord')->first();
+
+    expect($task)->not->toBeNull()
+        ->and($task->project_id)->toBe($this->project->id)
+        ->and($task->status)->toBe(TaskStatus::Todo)
+        ->and($task->created_by)->toBe($this->user->id);
+});
+
+test('creating a ticket from the board requires a title', function () {
+    Livewire::test(Index::class)
+        ->call('openNewTicket', TaskStatus::Todo->value)
+        ->set('newTicketProjectId', $this->project->id)
+        ->set('newTicketTitle', '')
+        ->call('createTicket')
+        ->assertHasErrors('newTicketTitle');
+});

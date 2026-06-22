@@ -173,3 +173,63 @@ test('a label can be toggled inline on the board', function () {
     $component->call('toggleLabel', $task->id, $label->id);
     expect($task->fresh()->labels()->count())->toBe(0);
 });
+
+test('the column plus creates a ticket via the modal', function () {
+    Livewire::test(Board::class, ['project' => $this->project])
+        ->call('openNewTicket', 'todo')
+        ->assertSet('newTicketStatus', 'todo')
+        ->set('newTicketTitle', 'Vanuit modal')
+        ->call('createTicket')
+        ->assertHasNoErrors();
+
+    $task = Task::where('title', 'Vanuit modal')->first();
+
+    expect($task)->not->toBeNull()
+        ->and($task->status)->toBe(TaskStatus::Todo)
+        ->and($task->project_id)->toBe($this->project->id);
+});
+
+test('creating a ticket via the modal requires a title', function () {
+    Livewire::test(Board::class, ['project' => $this->project])
+        ->call('openNewTicket', 'todo')
+        ->set('newTicketTitle', '')
+        ->call('createTicket')
+        ->assertHasErrors('newTicketTitle');
+});
+
+test('a column caps at the preview limit and reveals the rest on show more', function () {
+    Task::factory()->count(20)->for($this->project)->status(TaskStatus::Todo)
+        ->sequence(fn ($s) => ['title' => 'Vulkaart', 'position' => $s->index])->create();
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)
+        ->create(['title' => 'Laatste kaart', 'position' => 99]);
+
+    Livewire::test(Board::class, ['project' => $this->project])
+        ->assertDontSee('Laatste kaart')
+        ->assertSee('Toon nog 1')
+        ->call('showMoreColumn', 'todo')
+        ->assertSee('Laatste kaart')
+        ->assertDontSee('Toon nog');
+});
+
+test('creating a ticket survives a failing broadcaster (Reverb down)', function () {
+    // A broadcaster that always throws, mimicking a down Reverb server.
+    Illuminate\Support\Facades\Broadcast::extend('exploding', fn () => new class extends Illuminate\Broadcasting\Broadcasters\Broadcaster
+    {
+        public function auth($request) {}
+
+        public function validAuthenticationResponse($request, $result) {}
+
+        public function broadcast(array $channels, $event, array $payload = [])
+        {
+            throw new RuntimeException('reverb down');
+        }
+    });
+    config(['broadcasting.default' => 'exploding', 'broadcasting.connections.exploding' => ['driver' => 'exploding']]);
+
+    Livewire::test(Board::class, ['project' => $this->project])
+        ->set('newTaskTitle.todo', 'Ondanks broadcast')
+        ->call('createTask', 'todo')
+        ->assertHasNoErrors();
+
+    expect(Task::where('title', 'Ondanks broadcast')->exists())->toBeTrue();
+});

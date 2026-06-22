@@ -279,7 +279,7 @@ class Task extends Model
             static::whereKey($id)->update(['position' => $position]);
         }
 
-        TaskBoardUpdated::dispatch($workspaceId);
+        TaskBoardUpdated::dispatchQuietly($workspaceId);
     }
 
     /**

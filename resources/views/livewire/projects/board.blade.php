@@ -54,12 +54,20 @@
         <div class="flex-1 overflow-x-auto overflow-y-hidden">
             <div class="flex h-full gap-4 p-4">
                 @foreach ($this->statuses() as $status)
-                    @php $tasks = $this->columns[$status->value]; @endphp
-                    <div wire:key="col-{{ $status->value }}" class="flex h-full w-80 shrink-0 flex-col rounded-xl bg-zinc-50 dark:bg-zinc-900/50">
+                    @php
+                        $tasks = $this->columns[$status->value];
+                        $limit = $this->boardColumnLimit();
+                        $expanded = $this->columnIsExpanded($status->value);
+                        $visibleTasks = $expanded ? $tasks : $tasks->take($limit);
+                    @endphp
+                    <div wire:key="col-{{ $status->value }}" class="group/col flex h-full w-80 shrink-0 flex-col rounded-xl bg-zinc-50 dark:bg-zinc-900/50">
                         <div class="flex items-center gap-2 px-3 py-3">
                             <span class="size-2.5 rounded-full bg-{{ $status->color() }}-500"></span>
                             <flux:heading size="sm">{{ $status->label() }}</flux:heading>
                             <flux:badge size="sm" variant="pill">{{ $tasks->count() }}</flux:badge>
+                            <flux:button wire:click="openNewTicket('{{ $status->value }}')"
+                                variant="subtle" size="xs" icon="plus" inset="top bottom" :tooltip="__('Nieuw ticket')"
+                                class="ms-auto opacity-0 transition group-hover/col:opacity-100" />
                         </div>
 
                         <div
@@ -68,10 +76,18 @@
                             wire:sort:group-id="{{ $status->value }}"
                             class="flex-1 space-y-2 overflow-y-auto px-2 pb-2"
                         >
-                            @foreach ($tasks as $task)
+                            @foreach ($visibleTasks as $task)
                                 @include('livewire.partials.task-card', ['task' => $task])
                             @endforeach
                         </div>
+
+                        @if (! $expanded && $tasks->count() > $limit)
+                            <div class="px-2 pb-1">
+                                <flux:button wire:click="showMoreColumn('{{ $status->value }}')" variant="subtle" size="xs" class="w-full">
+                                    {{ __('Toon nog :count', ['count' => $tasks->count() - $limit]) }}
+                                </flux:button>
+                            </div>
+                        @endif
 
                         <div class="p-2">
                             <form wire:submit="createTask('{{ $status->value }}')">
@@ -91,12 +107,20 @@
         <div class="flex-1 overflow-y-auto">
             <div class="mx-auto max-w-4xl divide-y divide-zinc-100 p-4 dark:divide-zinc-800">
                 @foreach ($this->statuses() as $status)
-                    @php $tasks = $this->columns[$status->value]; @endphp
-                    <div wire:key="list-col-{{ $status->value }}" class="py-2">
+                    @php
+                        $tasks = $this->columns[$status->value];
+                        $limit = $this->boardColumnLimit();
+                        $expanded = $this->columnIsExpanded($status->value);
+                        $visibleTasks = $expanded ? $tasks : $tasks->take($limit);
+                    @endphp
+                    <div wire:key="list-col-{{ $status->value }}" class="group/col py-2">
                         <div class="flex items-center gap-2 px-3 py-2">
                             <span class="size-2.5 rounded-full bg-{{ $status->color() }}-500"></span>
                             <flux:heading size="sm">{{ $status->label() }}</flux:heading>
                             <flux:badge size="sm" variant="pill">{{ $tasks->count() }}</flux:badge>
+                            <flux:button wire:click="openNewTicket('{{ $status->value }}')"
+                                variant="subtle" size="xs" icon="plus" inset="top bottom" :tooltip="__('Nieuw ticket')"
+                                class="ms-auto opacity-0 transition group-hover/col:opacity-100" />
                         </div>
 
                         <div
@@ -105,10 +129,16 @@
                             wire:sort:group-id="{{ $status->value }}"
                             class="min-h-[8px] space-y-0.5"
                         >
-                            @foreach ($tasks as $task)
+                            @foreach ($visibleTasks as $task)
                                 @include('livewire.projects.partials.task-row', ['task' => $task])
                             @endforeach
                         </div>
+
+                        @if (! $expanded && $tasks->count() > $limit)
+                            <flux:button wire:click="showMoreColumn('{{ $status->value }}')" variant="subtle" size="xs" class="mt-1 w-full">
+                                {{ __('Toon nog :count', ['count' => $tasks->count() - $limit]) }}
+                            </flux:button>
+                        @endif
 
                         <form wire:submit="createTask('{{ $status->value }}')" class="px-3 pt-1">
                             <flux:input wire:model="newTaskTitle.{{ $status->value }}" size="sm" variant="filled"
@@ -121,6 +151,20 @@
     @endif
 
     <livewire:tasks.task-detail />
+
+    {{-- Create a ticket in a board column --}}
+    <flux:modal name="new-ticket" class="md:w-[30rem]">
+        <form wire:submit="createTicket" class="flex flex-col gap-4">
+            <flux:heading size="lg">{{ __('Nieuw ticket') }}</flux:heading>
+            <flux:input wire:model="newTicketTitle" :label="__('Titel')" />
+            <div class="flex justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Annuleren') }}</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary" icon="plus">{{ __('Aanmaken') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
 
     <flux:modal name="project-settings" class="md:w-[28rem]">
         <form wire:submit="saveProject" class="space-y-6">
