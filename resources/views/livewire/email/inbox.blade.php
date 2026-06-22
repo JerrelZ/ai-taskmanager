@@ -24,7 +24,7 @@
         </div>
 
         <div class="flex items-center gap-2">
-            @if ($this->account())
+            @if ($this->account() && config('features.ai'))
                 <flux:select wire:model.live="categoryFilter" size="sm" placeholder="{{ __('Alle categorieën') }}" class="max-w-[200px]">
                     <flux:select.option value="">{{ __('Alle categorieën') }}</flux:select.option>
                     @foreach (\App\Enums\EmailCategory::cases() as $category)
@@ -86,11 +86,13 @@
                 @endif
 
                 @forelse ($this->groupedThreads as $category => $threads)
-                    <div class="px-3 pt-4">
-                        <flux:badge size="sm" :color="$this->categoryColor($category)">
-                            {{ $this->categoryLabel($category) }}
-                        </flux:badge>
-                    </div>
+                    @if (config('features.ai'))
+                        <div class="px-3 pt-4">
+                            <flux:badge size="sm" :color="$this->categoryColor($category)">
+                                {{ $this->categoryLabel($category) }}
+                            </flux:badge>
+                        </div>
+                    @endif
 
                     @foreach ($threads as $thread)
                         <div wire:key="thread-{{ $thread->id }}" @class([
@@ -113,7 +115,7 @@
                                     <span class="size-2 shrink-0 rounded-full bg-blue-500"></span>
                                 @endunless
                             </div>
-                            @if ($thread->ai_summary)
+                            @if (config('features.ai') && $thread->ai_summary)
                                 <span class="line-clamp-2 text-xs text-zinc-500">{{ $thread->ai_summary }}</span>
                             @endif
                             <div class="flex items-center justify-between text-[11px] text-zinc-400">
@@ -250,11 +252,13 @@
                         <div class="shrink-0 border-t border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
                             {{-- Quick actions: AI draft + templates --}}
                             <div class="mb-2 flex items-center gap-2">
-                                <flux:button wire:click="draftReply" variant="subtle" size="xs" icon="sparkles"
-                                    wire:loading.attr="disabled" wire:target="draftReply">
-                                    <span wire:loading.remove wire:target="draftReply">{{ __('AI-concept') }}</span>
-                                    <span wire:loading wire:target="draftReply">{{ __('Genereren...') }}</span>
-                                </flux:button>
+                                @if (config('features.ai'))
+                                    <flux:button wire:click="draftReply" variant="subtle" size="xs" icon="sparkles"
+                                        wire:loading.attr="disabled" wire:target="draftReply">
+                                        <span wire:loading.remove wire:target="draftReply">{{ __('AI-concept') }}</span>
+                                        <span wire:loading wire:target="draftReply">{{ __('Genereren...') }}</span>
+                                    </flux:button>
+                                @endif
 
                                 <flux:dropdown position="top" align="start">
                                     <flux:button variant="subtle" size="xs" icon="chat-bubble-bottom-center-text" icon:trailing="chevron-up">
@@ -530,11 +534,13 @@
                 <div>
                     <div class="mb-1 flex items-center justify-between">
                         <flux:label>{{ __('Omschrijving') }}</flux:label>
-                        <flux:button wire:click="summariseThread" type="button" variant="subtle" size="xs" icon="sparkles"
-                            wire:loading.attr="disabled" wire:target="summariseThread">
-                            <span wire:loading.remove wire:target="summariseThread">{{ __('Samenvatten met AI') }}</span>
-                            <span wire:loading wire:target="summariseThread">{{ __('Samenvatten...') }}</span>
-                        </flux:button>
+                        @if (config('features.ai'))
+                            <flux:button wire:click="summariseThread" type="button" variant="subtle" size="xs" icon="sparkles"
+                                wire:loading.attr="disabled" wire:target="summariseThread">
+                                <span wire:loading.remove wire:target="summariseThread">{{ __('Samenvatten met AI') }}</span>
+                                <span wire:loading wire:target="summariseThread">{{ __('Samenvatten...') }}</span>
+                            </flux:button>
+                        @endif
                     </div>
                     <flux:textarea wire:model="ticketDescription" rows="8"
                         wire:loading.attr="disabled" wire:target="summariseThread" />

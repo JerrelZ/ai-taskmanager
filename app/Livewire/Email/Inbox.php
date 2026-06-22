@@ -167,7 +167,15 @@ class Inbox extends Component
             $query->where('ai_category', $this->categoryFilter);
         }
 
-        return $query->get()->groupBy(fn (EmailThread $thread): string => $thread->ai_category ?? 'uncategorised');
+        $threads = $query->get();
+
+        // With AI features off the category grouping is hidden, so collapse the
+        // inbox to a single flat list (keyed empty so no header renders).
+        if (! config('features.ai')) {
+            return $threads->isEmpty() ? collect() : collect(['' => $threads]);
+        }
+
+        return $threads->groupBy(fn (EmailThread $thread): string => $thread->ai_category ?? 'uncategorised');
     }
 
     #[Computed]

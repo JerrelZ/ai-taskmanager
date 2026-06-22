@@ -1,4 +1,4 @@
-const CACHE = 'tasks-shell-v2';
+const CACHE = 'tasks-shell-v3';
 const OFFLINE_URL = '/offline.html';
 
 self.addEventListener('install', (event) => {
