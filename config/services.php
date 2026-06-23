@@ -34,7 +34,7 @@ return [
     'linear' => [
         // Workspace slug used to build deep links back to imported Linear
         // issues, e.g. https://linear.app/{workspace}/issue/REVBOOS-10.
-        'workspace' => env('LINEAR_WORKSPACE', 'blogmatcher'),
+        'workspace' => env('LINEAR_WORKSPACE', 'bcc-nl'),
     ],
 
     'email' => [
