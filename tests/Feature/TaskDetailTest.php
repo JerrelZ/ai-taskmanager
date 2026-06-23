@@ -245,6 +245,34 @@ test('copying the ticket link dispatches the share URL to the clipboard', functi
         ->assertDispatched('copy-to-clipboard', text: $this->task->ticketUrl());
 });
 
+test('copying the transcript dispatches description and replies with inline images as markdown', function () {
+    $this->task->update([
+        'title' => 'Wipstoel bug',
+        'description' => '<p>Zie de fout hieronder.</p><p><img src="https://cdn.example.com/bug.png"></p>',
+    ]);
+
+    $author = User::factory()->create(['name' => 'Ada Lovelace']);
+    $this->task->comments()->create([
+        'user_id' => $author->id,
+        'body' => '<p>Goed gezien, ik fix dit.</p><p><img src="https://cdn.example.com/fix.png"></p>',
+    ]);
+
+    openDetail()
+        ->call('copyTranscript')
+        ->assertDispatched('copy-to-clipboard', function (string $event, array $params): bool {
+            $text = $params['text'];
+
+            return str_contains($text, 'Wipstoel bug')
+                && str_contains($text, '## Omschrijving')
+                && str_contains($text, 'Zie de fout hieronder.')
+                && str_contains($text, '![](https://cdn.example.com/bug.png)')
+                && str_contains($text, '## Reacties')
+                && str_contains($text, 'Ada Lovelace')
+                && str_contains($text, 'Goed gezien, ik fix dit.')
+                && str_contains($text, '![](https://cdn.example.com/fix.png)');
+        });
+});
+
 test('sending a ticket to a chat posts its link as a message', function () {
     $group = Conversation::factory()->create(['name' => 'Team']);
     $group->users()->sync([$this->user->id]);

@@ -13,6 +13,7 @@ use App\Notifications\MentionNotification;
 use App\Services\AttachmentService;
 use App\Support\Mentions;
 use App\Support\TaskActivity;
+use App\Support\TicketTranscript;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -124,6 +125,24 @@ class TaskDetail extends Component
         $this->dispatch('copy-to-clipboard', text: $task->ticketUrl());
 
         Flux::toast(text: __('Link gekopieerd.'), variant: 'success');
+    }
+
+    /**
+     * Copy the full ticket — title, description and every reply, including
+     * inline images — to the clipboard as Markdown, ready to paste into an AI
+     * assistant as a prompt.
+     */
+    public function copyTranscript(): void
+    {
+        $task = $this->task();
+
+        if ($task === null) {
+            return;
+        }
+
+        $this->dispatch('copy-to-clipboard', text: TicketTranscript::for($task));
+
+        Flux::toast(text: __('Ticket gekopieerd — omschrijving en reacties.'), variant: 'success');
     }
 
     /**

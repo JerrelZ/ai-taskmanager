@@ -41,6 +41,10 @@
                     <flux:dropdown>
                         <flux:button variant="subtle" size="sm" icon="ellipsis-horizontal" inset="top bottom" />
                         <flux:menu>
+                            <flux:menu.item wire:click="copyTranscript" icon="clipboard-document-list">
+                                {{ __('Kopieer omschrijving + reacties') }}
+                            </flux:menu.item>
+                            <flux:menu.separator />
                             <flux:menu.item wire:click="deleteTask" wire:confirm="{{ __('Deze task verwijderen?') }}" variant="danger" icon="trash">
                                 {{ __('Verwijderen') }}
                             </flux:menu.item>
