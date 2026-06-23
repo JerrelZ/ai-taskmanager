@@ -138,8 +138,8 @@
         </div>
     @endif
 
-    {{-- "Nu" block --}}
-    @if ($this->nowTask)
+    {{-- "Nu" block — tijdelijk verborgen op /tickets --}}
+    @if (false && $this->nowTask)
         @php $now = $this->nowTask; @endphp
         <div class="border-b border-zinc-200 px-4 py-5 lg:px-6 dark:border-zinc-800">
             <div class="flex items-end gap-4">
