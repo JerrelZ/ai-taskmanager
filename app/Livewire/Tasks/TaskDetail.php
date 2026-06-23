@@ -36,6 +36,9 @@ class TaskDetail extends Component
     /** @var array<int, TemporaryUploadedFile> */
     public array $newCommentAttachments = [];
 
+    /** Single image pasted into the description editor, awaiting storage. */
+    public ?TemporaryUploadedFile $pastedImage = null;
+
     // Editable fields
     public string $title = '';
 
@@ -188,6 +191,32 @@ class TaskDetail extends Component
         $this->reset('newAttachments');
         unset($this->task);
         Flux::toast(variant: 'success', text: __('Bijlage(n) toegevoegd.'));
+    }
+
+    /**
+     * Store an image pasted into the description editor as a task attachment and
+     * return its inline URL so the editor can embed it. This keeps pasted images
+     * as real attachments instead of bloating the description with a base64 blob,
+     * and surfaces them in the attachment list too.
+     */
+    public function attachPastedImage(AttachmentService $attachments): ?string
+    {
+        $task = $this->task();
+
+        if ($task === null || $this->pastedImage === null) {
+            return null;
+        }
+
+        $this->validate([
+            'pastedImage' => ['image', 'max:25600'], // 25 MB
+        ]);
+
+        $attachment = $attachments->storeUpload($this->pastedImage, $task, Auth::user());
+
+        $this->reset('pastedImage');
+        unset($this->task);
+
+        return route('attachments.show', $attachment);
     }
 
     public function removeNewAttachment(int $index): void

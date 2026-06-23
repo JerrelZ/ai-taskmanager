@@ -1,3 +1,71 @@
+// Flux's editor (Tiptap v3) ships without an image node, so images already in a
+// ticket description get stripped the moment it loads into the editor (read
+// mode renders raw HTML, so they only vanish while editing). Registering the
+// Image extension adds the node to the schema, keeping images visible and
+// editable. allowBase64 covers inline data-URI images (e.g. pasted/emailed).
+//
+// Flux dispatches `flux:editor` synchronously right before `new Editor(...)`, so
+// the extension must be available synchronously — hence a static import (it can
+// not wait on a dynamic import without losing the registration window).
+import Image from '@tiptap/extension-image';
+
+// @tiptap/extension-image is PINNED to 3.0.9 on purpose: newer versions ship a
+// custom addNodeView() whose node-view API doesn't match the older Tiptap that
+// Flux bundles, which crashes the editor ("addNodeView is not a function") and
+// drops everything after the first image. 3.0.9 renders images via plain
+// renderHTML (no node view), so it works regardless of Flux's Tiptap version.
+// Do not bump without testing the editor against Flux's bundled Tiptap.
+//
+// inline: true is essential too — descriptions store images as `<p><img></p>`,
+// and a block image can't live inside a paragraph (inline content only), so a
+// block image node would be dropped on parse. An inline node renders in place.
+document.addEventListener('flux:editor', (e) => {
+    e.detail.registerExtensions([Image.configure({ inline: true, allowBase64: true })]);
+
+    // Paste an image (e.g. a screenshot) straight into the editor: intercept the
+    // paste, upload it as a real task attachment, then embed it inline using the
+    // returned URL. Falls through to the default paste for non-image clipboards.
+    e.detail.init(({ editor }) => {
+        editor.on('create', () => {
+            const dom = editor.view.dom;
+            if (dom.dataset.pasteImagesBound) {
+                return;
+            }
+            dom.dataset.pasteImagesBound = '1';
+            dom.addEventListener('paste', (event) => handleEditorImagePaste(event, editor), true);
+        });
+    });
+});
+
+function handleEditorImagePaste(event, editor) {
+    const file = Array.from(event.clipboardData?.items || [])
+        .find((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        ?.getAsFile();
+
+    if (! file) {
+        return; // not an image paste — let the editor handle text/links normally
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Livewire.find() already returns the component's $wire proxy.
+    const host = editor.view.dom.closest('[wire\\:id]');
+    const wire = host && window.Livewire?.find(host.getAttribute('wire:id'));
+
+    if (! wire) {
+        return;
+    }
+
+    wire.upload('pastedImage', file, () => {
+        wire.attachPastedImage().then((url) => {
+            if (url) {
+                editor.chain().focus().setImage({ src: url }).run();
+            }
+        });
+    });
+}
+
 // Curated emoji set for the chat composer picker. Kept inline so the picker
 // needs no extra runtime dependency.
 const EMOJI_CATEGORIES = [

@@ -233,3 +233,28 @@ test('a ticket cannot be sent to a conversation the user cannot access', functio
 
     expect($group->messages()->count())->toBe(0);
 });
+
+test('saving a description keeps embedded images', function () {
+    $html = '<p>Zie deze afbeelding:</p><img src="https://example.com/screenshot.png" alt="">';
+
+    openDetail()
+        ->set('description', $html)
+        ->call('saveDescription');
+
+    expect($this->task->refresh()->description)->toContain('<img')
+        ->and($this->task->description)->toContain('https://example.com/screenshot.png');
+});
+
+test('pasting an image into the description stores it as a task attachment', function () {
+    Storage::fake('local');
+
+    $image = UploadedFile::fake()->image('paste.png', 40, 40);
+
+    openDetail()
+        ->set('pastedImage', $image)
+        ->call('attachPastedImage')
+        ->assertHasNoErrors();
+
+    expect($this->task->attachments()->count())->toBe(1)
+        ->and($this->task->attachments()->first()->isImage())->toBeTrue();
+});
