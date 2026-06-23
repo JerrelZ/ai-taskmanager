@@ -13,7 +13,7 @@
         ])
     >
         @if ($task->assignee)
-            <flux:avatar size="xs" circle :name="$task->assignee->name" :initials="$task->assignee->initials()" />
+            <flux:avatar size="xs" circle :name="$task->assignee->name" :initials="$task->assignee->initials()" :src="$task->assignee->avatar_url" />
         @else
             <span class="flex size-6 items-center justify-center rounded-full border border-dashed border-zinc-300 text-zinc-400 dark:border-zinc-600">
                 <flux:icon name="user" variant="micro" />
@@ -28,7 +28,7 @@
         @foreach ($this->users as $user)
             <flux:menu.item x-on:click.stop wire:click="setAssignee({{ $task->id }}, {{ $user->id }})" :icon="$task->assignee_id === $user->id ? 'check' : null">
                 <span class="flex items-center gap-2">
-                    <flux:avatar size="xs" circle :name="$user->name" :initials="$user->initials()" />
+                    <flux:avatar size="xs" circle :name="$user->name" :initials="$user->initials()" :src="$user->avatar_url" />
                     {{ $user->name }}
                 </span>
             </flux:menu.item>

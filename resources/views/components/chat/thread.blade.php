@@ -74,7 +74,7 @@
             ])>
                 @unless ($mine)
                     @if ($startsGroup)
-                        <flux:avatar size="xs" circle :name="$message->user?->name ?? '?'" :initials="$message->user?->initials() ?? '?'" class="shrink-0" />
+                        <flux:avatar size="xs" circle :name="$message->user?->name ?? '?'" :initials="$message->user?->initials() ?? '?'" :src="$message->user?->avatar_url" class="shrink-0" />
                     @else
                         <div class="size-6 shrink-0"></div>
                     @endif

@@ -214,7 +214,7 @@
                                         'line-through text-zinc-400' => $subtask->isComplete(),
                                     ])>{{ $subtask->title }}</button>
                                     @if ($subtask->assignee)
-                                        <flux:avatar size="xs" circle :name="$subtask->assignee->name" :initials="$subtask->assignee->initials()" />
+                                        <flux:avatar size="xs" circle :name="$subtask->assignee->name" :initials="$subtask->assignee->initials()" :src="$subtask->assignee->avatar_url" />
                                     @endif
                                 </div>
                             @endforeach
@@ -289,7 +289,7 @@
                         <div class="space-y-4">
                             @forelse ($task->comments as $comment)
                                 <div wire:key="comment-{{ $comment->id }}" class="flex gap-3">
-                                    <flux:avatar size="sm" circle :name="$comment->user->name" :initials="$comment->user->initials()" />
+                                    <flux:avatar size="sm" circle :name="$comment->user->name" :initials="$comment->user->initials()" :src="$comment->user->avatar_url" />
                                     <div class="flex-1">
                                         <div class="flex items-baseline gap-2">
                                             <flux:heading size="sm">{{ $comment->user->name }}</flux:heading>

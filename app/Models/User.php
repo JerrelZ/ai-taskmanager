@@ -9,6 +9,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -16,6 +17,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
@@ -27,6 +29,8 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
  * @property int|null $workspace_id
  * @property string $name
  * @property string $email
+ * @property string|null $avatar_path
+ * @property-read string|null $avatar_url
  * @property UserRole $role
  * @property bool $can_copy_prompt
  * @property int|null $client_id
@@ -45,7 +49,7 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password', 'role', 'client_id', 'workspace_id', 'daily_recap_enabled'])]
+#[Fillable(['name', 'email', 'password', 'role', 'client_id', 'workspace_id', 'daily_recap_enabled', 'avatar_path'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -231,5 +235,19 @@ class User extends Authenticatable implements PasskeyUser
             ->take(2)
             ->map(fn ($word) => Str::substr($word, 0, 1))
             ->implode('');
+    }
+
+    /**
+     * Publicly accessible URL of the user's uploaded avatar, or null when they
+     * have none (callers fall back to rendering initials).
+     *
+     * @return Attribute<string|null, never>
+     */
+    protected function avatarUrl(): Attribute
+    {
+        return Attribute::get(fn (): ?string => $this->avatar_path !== null
+            ? Storage::disk('public')->url($this->avatar_path)
+            : null
+        );
     }
 }

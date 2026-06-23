@@ -26,7 +26,7 @@
                     <flux:table.row wire:key="user-{{ $user->id }}">
                         <flux:table.cell>
                             <span class="flex items-center gap-2">
-                                <flux:avatar size="xs" circle :name="$user->name" :initials="$user->initials()" />
+                                <flux:avatar size="xs" circle :name="$user->name" :initials="$user->initials()" :src="$user->avatar_url" />
                                 {{ $user->name }}
                             </span>
                         </flux:table.cell>
