@@ -211,31 +211,30 @@ class Conversation extends Model
     }
 
     /**
-     * Send a realtime notification to participants who opted into realtime
-     * delivery. Digest users are picked up later by the digest command.
+     * Notify conversation participants of a new message. A direct @mention always
+     * reaches the recipient in-app (and via web-push on subscribed devices),
+     * regardless of their messenger-notification preference or a muted thread.
+     * Regular new-message notifications still respect realtime opt-in and mute;
+     * digest users are picked up later by the digest command.
      */
     protected function notifyParticipantsOfNewMessage(Message $message, User $sender): void
     {
-        $mutedUserIds = DB::table('conversation_user')
-            ->where('conversation_id', $this->id)
-            ->where('muted', true)
-            ->pluck('user_id')
-            ->all();
-
-        $recipients = $this->recipientsExcept($sender)
-            ->filter(fn (User $user) => $user->wantsRealtimeMessageNotifications()
-                && ! in_array($user->id, $mutedUserIds, true));
+        $recipients = $this->recipientsExcept($sender);
 
         if ($recipients->isEmpty()) {
             return;
         }
 
         $url = route('messages.index', ['conversationId' => $this->id]);
-
-        // A direct @mention gets its own, more prominent notification; everyone
-        // else in the conversation gets the regular new-message notification.
-        $mentionedIds = Mentions::extractUsers($message->body, $recipients)->pluck('id')->all();
         $preview = Str::limit(trim($message->body), 120) ?: __('Stuurde een bijlage.');
+
+        // Mentions bypass every preference; regular messages honour mute + opt-in.
+        $mentionedIds = Mentions::extractUsers($message->body, $recipients)->pluck('id')->all();
+        $mutedUserIds = DB::table('conversation_user')
+            ->where('conversation_id', $this->id)
+            ->where('muted', true)
+            ->pluck('user_id')
+            ->all();
 
         foreach ($recipients as $recipient) {
             if (in_array($recipient->id, $mentionedIds, true)) {
@@ -249,7 +248,9 @@ class Conversation extends Model
                 continue;
             }
 
-            $recipient->notify(new NewMessageNotification($message, $this->pushTitleFor($sender), $url));
+            if ($recipient->wantsRealtimeMessageNotifications() && ! in_array($recipient->id, $mutedUserIds, true)) {
+                $recipient->notify(new NewMessageNotification($message, $this->pushTitleFor($sender), $url));
+            }
         }
     }
 

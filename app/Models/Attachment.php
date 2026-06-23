@@ -30,6 +30,7 @@ class Attachment extends Model
         'filename',
         'mime_type',
         'size',
+        'checksum',
         'uploaded_by',
     ];
 

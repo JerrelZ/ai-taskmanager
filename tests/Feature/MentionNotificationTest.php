@@ -45,9 +45,11 @@ test('other participants still receive the regular message notification', functi
     Notification::assertNotSentTo($bystander, MentionNotification::class);
 });
 
-test('a chat mention respects the digest preference', function () {
+test('a chat mention notifies even a digest user', function () {
     Notification::fake();
 
+    // A direct mention bypasses the messenger preference: a digest user who would
+    // normally not get realtime pings is still notified when addressed directly.
     $mentioned = User::factory()->create([
         'name' => 'Sanne de Vries',
         'messenger_notification_mode' => MessengerNotificationMode::Digest,
@@ -58,7 +60,7 @@ test('a chat mention respects the digest preference', function () {
 
     $group->postMessage($this->user, 'Hoi @Sanne de Vries');
 
-    Notification::assertNotSentTo($mentioned, MentionNotification::class);
+    Notification::assertSentTo($mentioned, MentionNotification::class);
 });
 
 test('mentioning a teammate in a comment notifies them', function () {
@@ -76,9 +78,11 @@ test('mentioning a teammate in a comment notifies them', function () {
     Notification::assertSentTo($mentioned, MentionNotification::class);
 });
 
-test('a comment mention does not notify someone with notifications disabled', function () {
+test('a comment mention notifies even someone with messenger notifications off', function () {
     Notification::fake();
 
+    // Mentions are direct, so they reach the recipient in-app regardless of their
+    // messenger-notification preference; only project visibility gates them.
     $project = Project::factory()->create();
     $task = Task::factory()->for($project)->create();
     $mentioned = User::factory()->create([
@@ -91,7 +95,7 @@ test('a comment mention does not notify someone with notifications disabled', fu
         ->set('newComment', 'Hoi @Sanne de Vries')
         ->call('addComment');
 
-    Notification::assertNotSentTo($mentioned, MentionNotification::class);
+    Notification::assertSentTo($mentioned, MentionNotification::class);
 });
 
 test('a comment mention does not notify the author', function () {

@@ -36,7 +36,7 @@ class TaskDetail extends Component
     /** @var array<int, TemporaryUploadedFile> */
     public array $newCommentAttachments = [];
 
-    /** Single image pasted into the description editor, awaiting storage. */
+    /** Single image pasted into the description editor or a reply, awaiting storage. */
     public ?TemporaryUploadedFile $pastedImage = null;
 
     // Editable fields
@@ -194,10 +194,14 @@ class TaskDetail extends Component
     }
 
     /**
-     * Store an image pasted into the description editor as a task attachment and
-     * return its inline URL so the editor can embed it. This keeps pasted images
-     * as real attachments instead of bloating the description with a base64 blob,
-     * and surfaces them in the attachment list too.
+     * Store an image pasted into the description editor or a reply as a task
+     * attachment and return its inline URL so the caller can embed it. This keeps
+     * pasted images as real attachments instead of bloating the body with a
+     * base64 blob, and surfaces them in the attachment list too.
+     *
+     * Pasting the same image again (e.g. after deleting it from the editor and
+     * re-pasting) reuses the existing attachment by content checksum instead of
+     * piling up duplicates in the attachment list.
      */
     public function attachPastedImage(AttachmentService $attachments): ?string
     {
@@ -211,7 +215,10 @@ class TaskDetail extends Component
             'pastedImage' => ['image', 'max:25600'], // 25 MB
         ]);
 
-        $attachment = $attachments->storeUpload($this->pastedImage, $task, Auth::user());
+        $checksum = AttachmentService::checksum($this->pastedImage->get());
+
+        $attachment = $task->attachments()->where('checksum', $checksum)->first()
+            ?? $attachments->storeUpload($this->pastedImage, $task, Auth::user());
 
         $this->reset('pastedImage');
         unset($this->task);
@@ -299,7 +306,7 @@ class TaskDetail extends Component
      */
     private function sanitizeHtml(?string $html): ?string
     {
-        if ($html === null || trim(strip_tags($html)) === '') {
+        if ($html === null || (trim(strip_tags($html)) === '' && ! str_contains($html, '<img'))) {
             return null;
         }
 
@@ -444,10 +451,12 @@ class TaskDetail extends Component
     public function addComment(AttachmentService $attachments): void
     {
         $task = $this->task;
-        $body = trim($this->newComment);
+        // The reply comes from the rich editor as HTML; strip dangerous markup
+        // and treat an "empty" editor (no text and no image) as no body.
+        $body = $this->sanitizeHtml($this->newComment);
 
-        // A reply needs either text or at least one file to be meaningful.
-        if ($task === null || ($body === '' && count($this->newCommentAttachments) === 0)) {
+        // A reply needs either content or at least one file to be meaningful.
+        if ($task === null || ($body === null && count($this->newCommentAttachments) === 0)) {
             return;
         }
 
@@ -458,7 +467,7 @@ class TaskDetail extends Component
 
         $comment = $task->comments()->create([
             'user_id' => Auth::id(),
-            'body' => $body,
+            'body' => $body ?? '',
         ]);
 
         // Files posted in the reply stay attached to the task (so they appear
@@ -470,7 +479,7 @@ class TaskDetail extends Component
 
         TaskActivity::log($task, 'comment', ['comment_id' => $comment->id]);
 
-        $this->notifyMentionedUsers($task, $body);
+        $this->notifyMentionedUsers($task, strip_tags($body ?? ''));
 
         $this->reset('newComment', 'newCommentAttachments');
         unset($this->task);
@@ -484,17 +493,16 @@ class TaskDetail extends Component
     }
 
     /**
-     * Notify users @mentioned in a comment. Only people who can see the project
-     * and who opted into message notifications are pinged, so a mention follows
-     * the same preferences as a chat message.
+     * Notify users @mentioned in a comment. A direct mention always reaches the
+     * recipient in-app (and via web-push on subscribed devices), regardless of
+     * their messenger-notification preference — only project visibility gates it.
      */
     private function notifyMentionedUsers(Task $task, string $body): void
     {
         $candidates = $this->users->reject(fn (User $user) => $user->id === Auth::id());
 
         $mentioned = Mentions::extractUsers($body, $candidates)
-            ->filter(fn (User $user) => $user->wantsRealtimeMessageNotifications()
-                && $task->project->isVisibleTo($user));
+            ->filter(fn (User $user) => $task->project->isVisibleTo($user));
 
         if ($mentioned->isEmpty()) {
             return;

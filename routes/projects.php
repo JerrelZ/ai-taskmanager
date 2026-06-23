@@ -4,6 +4,7 @@ use App\Http\Controllers\TicketController;
 use App\Livewire\Clients\Index as ClientsIndex;
 use App\Livewire\Email\Inbox as EmailInbox;
 use App\Livewire\Messages\Index as MessagesIndex;
+use App\Livewire\Notifications\Index as NotificationsIndex;
 use App\Livewire\Projects\Board;
 use App\Livewire\Projects\Index;
 use App\Livewire\System\Health as SystemHealth;
@@ -22,6 +23,7 @@ Route::middleware(['auth'])->group(function () {
         ->where('identifier', '[A-Za-z0-9]+-[0-9]+')
         ->name('tickets.show');
     Route::livewire('messages', MessagesIndex::class)->name('messages.index');
+    Route::livewire('notifications', NotificationsIndex::class)->name('notifications.index');
     Route::livewire('projects', Index::class)->name('projects.index');
     Route::livewire('projects/{project}', Board::class)->name('projects.board');
     Route::livewire('projects/{project}/inbox', EmailInbox::class)->name('projects.inbox');

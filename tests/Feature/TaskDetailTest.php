@@ -118,6 +118,40 @@ test('a comment can be posted', function () {
         ->and($comment->user_id)->toBe($this->user->id);
 });
 
+test('a rich reply with an inline image is stored and rendered inline', function () {
+    openDetail()
+        ->set('newComment', '<p>Zie hier <img src="http://localhost/attachments/7"></p>')
+        ->call('addComment')
+        ->assertSeeHtml('<img src="http://localhost/attachments/7"');
+
+    expect($this->task->comments()->first()->body)
+        ->toContain('<img src="http://localhost/attachments/7"');
+});
+
+test('an image-only reply (no text) is accepted', function () {
+    openDetail()
+        ->set('newComment', '<p><img src="http://localhost/attachments/9"></p>')
+        ->call('addComment');
+
+    expect($this->task->comments()->count())->toBe(1);
+});
+
+test('an empty editor reply is ignored', function () {
+    openDetail()
+        ->set('newComment', '<p></p>')
+        ->call('addComment');
+
+    expect($this->task->comments()->count())->toBe(0);
+});
+
+test('dangerous markup in a reply is stripped before saving', function () {
+    openDetail()
+        ->set('newComment', '<p>Hoi<script>alert(1)</script></p>')
+        ->call('addComment');
+
+    expect($this->task->comments()->first()->body)->not->toContain('<script>');
+});
+
 test('a reply can carry file attachments', function () {
     Storage::fake('local');
 
@@ -176,12 +210,11 @@ test('posting a comment logs an activity', function () {
         ->and($activity->description())->toBe('plaatste een reactie');
 });
 
-test('the comment composer is wired for mention autocomplete', function () {
-    $mate = User::factory()->create(['name' => 'Sanne Mention']);
-
+test('the comment composer is a rich editor wired to newComment with mention names', function () {
     openDetail()
-        ->assertSeeHtml('x-data="mentionField(')
-        ->assertSeeHtml($mate->name);
+        ->assertSeeHtml('data-flux-editor')
+        ->assertSeeHtml('wire:model="newComment"')
+        ->assertSeeHtml('data-mentions=');
 });
 
 test('the activity log is shown with a count once there is activity', function () {
@@ -257,4 +290,34 @@ test('pasting an image into the description stores it as a task attachment', fun
 
     expect($this->task->attachments()->count())->toBe(1)
         ->and($this->task->attachments()->first()->isImage())->toBeTrue();
+});
+
+test('re-pasting the same image reuses the existing attachment', function () {
+    Storage::fake('local');
+
+    $bytes = UploadedFile::fake()->image('paste.png', 40, 40)->get();
+
+    foreach (range(1, 2) as $i) {
+        openDetail()
+            ->set('pastedImage', UploadedFile::fake()->createWithContent("paste-{$i}.png", $bytes))
+            ->call('attachPastedImage')
+            ->assertHasNoErrors();
+    }
+
+    // The second paste reuses the first attachment instead of duplicating it.
+    expect($this->task->attachments()->count())->toBe(1);
+});
+
+test('pasting a different image adds a separate attachment', function () {
+    Storage::fake('local');
+
+    openDetail()
+        ->set('pastedImage', UploadedFile::fake()->image('one.png', 40, 40))
+        ->call('attachPastedImage');
+
+    openDetail()
+        ->set('pastedImage', UploadedFile::fake()->image('two.png', 80, 80))
+        ->call('attachPastedImage');
+
+    expect($this->task->attachments()->count())->toBe(2);
 });

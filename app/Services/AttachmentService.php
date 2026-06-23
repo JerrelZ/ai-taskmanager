@@ -28,13 +28,17 @@ class AttachmentService
         $mimeType = $file->getClientMimeType();
         $size = $file->getSize() ?: 0;
 
+        // Checksum the original bytes so an identical re-upload (e.g. re-pasting
+        // the same screenshot) can be recognised, regardless of any processing.
+        $checksum = self::checksum($file->get());
+
         // Resize images (and convert HEIC to JPEG) so they stay a sensible size
         // and preview in the browser. Falls back to the original on failure.
         if ($this->images->isProcessable($mimeType, $originalName) && ($realPath = $file->getRealPath()) !== false) {
             $processed = $this->images->process($realPath, $originalName);
 
             if ($processed !== null) {
-                return $this->storeRaw($processed['contents'], $processed['filename'], $processed['mime'], $attachable, $uploader);
+                return $this->storeRaw($processed['contents'], $processed['filename'], $processed['mime'], $attachable, $uploader, $checksum);
             }
         }
 
@@ -45,10 +49,11 @@ class AttachmentService
             'filename' => $originalName ?: basename($path),
             'mime_type' => $mimeType,
             'size' => $size,
+            'checksum' => $checksum,
         ], $uploader);
     }
 
-    public function storeRaw(string $contents, string $filename, ?string $mime, Model $attachable, ?User $uploader = null): Attachment
+    public function storeRaw(string $contents, string $filename, ?string $mime, Model $attachable, ?User $uploader = null, ?string $checksum = null): Attachment
     {
         $extension = pathinfo($filename, PATHINFO_EXTENSION);
         $path = $this->directory($attachable).'/'.Str::uuid().($extension !== '' ? '.'.$extension : '');
@@ -60,7 +65,16 @@ class AttachmentService
             'filename' => $filename !== '' ? $filename : basename($path),
             'mime_type' => $mime,
             'size' => strlen($contents),
+            'checksum' => $checksum ?? self::checksum($contents),
         ], $uploader);
+    }
+
+    /**
+     * The sha256 digest used to detect identical file contents.
+     */
+    public static function checksum(string $contents): string
+    {
+        return hash('sha256', $contents);
     }
 
     /**

@@ -15,6 +15,33 @@ test('it highlights known mentions, links urls and escapes html', function () {
         ->not->toContain('<script>');
 });
 
+test('renderComment keeps editor html, highlights mentions in text and preserves an inline image', function () {
+    User::factory()->create(['name' => 'Sanne de Vries']);
+
+    $html = Mentions::renderComment(
+        '<p>Kijk @Sanne</p><p><img src="https://app.test/attachments/42"></p>',
+        User::all(),
+    );
+
+    expect($html)
+        ->toContain('<img src="https://app.test/attachments/42"') // image kept as-is
+        ->toContain('text-brand-600') // mention highlighted
+        ->toContain('<p>'); // structure preserved
+});
+
+test('renderComment does not linkify a url that is already an anchor', function () {
+    $html = Mentions::renderComment('<p><a href="https://example.com">link</a></p>', collect());
+
+    // The href inside the existing anchor must not be wrapped again.
+    expect(substr_count($html, '<a '))->toBe(1);
+});
+
+test('renderComment escapes legacy plain-text comments', function () {
+    $html = Mentions::renderComment('a < b <script>alert(1)</script>', collect());
+
+    expect($html)->not->toContain('<script>');
+});
+
 test('it does not highlight unknown names', function () {
     User::factory()->create(['name' => 'Sanne de Vries']);
 

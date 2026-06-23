@@ -25,17 +25,160 @@ document.addEventListener('flux:editor', (e) => {
     // Paste an image (e.g. a screenshot) straight into the editor: intercept the
     // paste, upload it as a real task attachment, then embed it inline using the
     // returned URL. Falls through to the default paste for non-image clipboards.
+    // An editor carrying a `data-mentions` list also gets @-mention autocomplete.
     e.detail.init(({ editor }) => {
         editor.on('create', () => {
             const dom = editor.view.dom;
-            if (dom.dataset.pasteImagesBound) {
+            if (dom.dataset.editorEnhanced) {
                 return;
             }
-            dom.dataset.pasteImagesBound = '1';
+            dom.dataset.editorEnhanced = '1';
             dom.addEventListener('paste', (event) => handleEditorImagePaste(event, editor), true);
+
+            const host = dom.closest('[data-flux-editor]');
+            const names = parseMentionNames(host?.getAttribute('data-mentions'));
+            if (names.length > 0) {
+                bindEditorMentions(editor, host, names);
+            }
         });
     });
 });
+
+function parseMentionNames(raw) {
+    if (! raw) {
+        return [];
+    }
+
+    try {
+        const value = JSON.parse(raw);
+
+        return Array.isArray(value) ? value : [];
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Plain-text @mention autocomplete for a Flux (Tiptap) editor. Deliberately does
+ * NOT use Tiptap's Mention node — that ships a custom node view that crashes
+ * against Flux's bundled Tiptap (same reason the Image extension is pinned). It
+ * watches the caret via the stable editor API and inserts the chosen name as
+ * ordinary "@Name " text, which Mentions::renderComment then highlights.
+ */
+function bindEditorMentions(editor, host, names) {
+    // Render inside the nearest <dialog> when the editor sits in a modal: a native
+    // modal dialog lives in the top layer, so a menu on document.body would render
+    // behind it (invisible). A fixed descendant of the dialog still paints in the
+    // top layer while using simple viewport coordinates.
+    const overlay = editor.view.dom.closest('dialog') || document.body;
+    const menu = document.createElement('div');
+    menu.className = 'fixed z-50 hidden max-h-48 w-64 max-w-[80vw] overflow-y-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800';
+    overlay.appendChild(menu);
+
+    let matches = [];
+    let active = 0;
+    let range = null; // doc positions of the "@query" being completed
+
+    const close = () => {
+        menu.classList.add('hidden');
+        matches = [];
+        range = null;
+    };
+
+    const render = () => {
+        menu.innerHTML = '';
+        matches.forEach((name, i) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = '@' + name;
+            button.className = 'block w-full px-3 py-2 text-start text-sm text-zinc-700 dark:text-zinc-200 ' + (i === active ? 'bg-brand-50 dark:bg-brand-950/40' : '');
+            // mousedown (not click) so the pick happens before the editor blurs.
+            button.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+                choose(i);
+            });
+            menu.appendChild(button);
+        });
+    };
+
+    const choose = (i) => {
+        const name = matches[i];
+        if (! name || ! range) {
+            close();
+
+            return;
+        }
+
+        editor.chain().focus().insertContentAt({ from: range.from, to: range.to }, '@' + name + ' ').run();
+        close();
+    };
+
+    const update = () => {
+        const { from, empty } = editor.state.selection;
+        if (! empty) {
+            close();
+
+            return;
+        }
+
+        const before = editor.state.doc.textBetween(Math.max(0, from - 50), from, '\n', ' ');
+        const match = before.match(/(?:^|\s)@([\p{L}\w]*)$/u);
+        if (! match) {
+            close();
+
+            return;
+        }
+
+        const query = match[1].toLowerCase();
+        matches = names.filter((name) => name.toLowerCase().includes(query)).slice(0, 6);
+        if (matches.length === 0) {
+            close();
+
+            return;
+        }
+
+        active = 0;
+        range = { from: from - match[1].length - 1, to: from }; // include the '@'
+        render();
+
+        // Anchor just above the caret (the reply composer sits low in the modal).
+        const caret = editor.view.coordsAtPos(from);
+        menu.style.left = caret.left + 'px';
+        menu.style.top = 'auto';
+        menu.style.bottom = (window.innerHeight - caret.top + 4) + 'px';
+        menu.classList.remove('hidden');
+    };
+
+    // Capture on the host (an ancestor of the editable) so we intercept the keys
+    // before ProseMirror's own keydown handler turns Enter into a newline.
+    host.addEventListener('keydown', (event) => {
+        if (menu.classList.contains('hidden') || matches.length === 0) {
+            return;
+        }
+
+        if (event.key === 'ArrowDown') {
+            active = (active + 1) % matches.length;
+            render();
+        } else if (event.key === 'ArrowUp') {
+            active = (active - 1 + matches.length) % matches.length;
+            render();
+        } else if (event.key === 'Enter' || event.key === 'Tab') {
+            choose(active);
+        } else if (event.key === 'Escape') {
+            close();
+        } else {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+    }, true);
+
+    editor.on('selectionUpdate', update);
+    editor.on('update', update);
+    editor.on('blur', () => setTimeout(close, 120));
+    editor.on('destroy', () => menu.remove());
+}
 
 function handleEditorImagePaste(event, editor) {
     const file = Array.from(event.clipboardData?.items || [])
@@ -491,52 +634,6 @@ document.addEventListener('alpine:init', () => {
                 this.autosize();
                 this.input?.focus();
             });
-        },
-    }));
-
-    /**
-     * Standalone @mention autocomplete for a single textarea (e.g. the task
-     * comment box). Reuses the chat composer's detection and insertion so both
-     * inputs behave identically, including on touch devices.
-     */
-    window.Alpine.data('mentionField', (names) => ({
-        names,
-        open: false,
-        matches: [],
-        active: 0,
-
-        get input() {
-            return this.$refs.input;
-        },
-
-        onInput() {
-            this.matches = mentionMatches(this.input, this.names);
-            this.active = 0;
-            this.open = this.matches.length > 0;
-        },
-
-        onKeydown(event) {
-            if (!this.open) {
-                return;
-            }
-
-            if (event.key === 'ArrowDown') {
-                event.preventDefault();
-                this.active = (this.active + 1) % this.matches.length;
-            } else if (event.key === 'ArrowUp') {
-                event.preventDefault();
-                this.active = (this.active - 1 + this.matches.length) % this.matches.length;
-            } else if (event.key === 'Enter') {
-                event.preventDefault();
-                this.choose(this.matches[this.active]);
-            } else if (event.key === 'Escape') {
-                this.open = false;
-            }
-        },
-
-        choose(name) {
-            insertMention(this.input, name);
-            this.open = false;
         },
     }));
 

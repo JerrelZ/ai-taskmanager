@@ -296,7 +296,7 @@
                                             <flux:text size="sm" class="text-zinc-400">{{ $comment->created_at->diffForHumans() }}</flux:text>
                                         </div>
                                         @if (filled($comment->body))
-                                            <div class="mt-0.5 text-sm text-zinc-700 dark:text-zinc-200">{!! \App\Support\Mentions::render($comment->body, $this->users) !!}</div>
+                                            <div class="mt-0.5 text-sm text-zinc-700 dark:text-zinc-200 [&_a]:text-brand-500 [&_a]:underline [&_img]:my-1.5 [&_img]:max-h-80 [&_img]:max-w-full [&_img]:rounded-lg [&_ol]:list-decimal [&_ol]:ps-5 [&_ul]:list-disc [&_ul]:ps-5">{!! \App\Support\Mentions::renderComment($comment->body, $this->users) !!}</div>
                                         @endif
                                         @if ($comment->attachments->isNotEmpty())
                                             <div class="mt-2">
@@ -310,7 +310,7 @@
                             @endforelse
                         </div>
 
-                        <form wire:submit="addComment" x-data="mentionField(@js($this->users->pluck('name')->values()))" class="space-y-2">
+                        <form wire:submit="addComment" class="space-y-2">
                             <div wire:loading.flex wire:target="newCommentAttachments" class="items-center gap-2 text-xs text-zinc-400">
                                 <flux:icon name="loading" variant="micro" />
                                 {{ __('Bezig met uploaden...') }}
@@ -328,63 +328,22 @@
                                 </div>
                             @endif
 
-                            <div class="flex items-end gap-2">
-                                <div class="relative flex-1">
-                                    <textarea
-                                        x-ref="input"
-                                        wire:model="newComment"
-                                        x-on:input="onInput()"
-                                        x-on:keydown="onKeydown($event)"
-                                        rows="1"
-                                        placeholder="{{ __('Schrijf een reactie…') }}"
-                                        class="block max-h-32 w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-base text-zinc-800 placeholder-zinc-400 focus:border-brand-500 focus:outline-none focus:ring-0 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                                    ></textarea>
+                            {{-- Rich reply editor: supports inline images (paste a screenshot
+                                 straight in) and @-mention autocomplete (data-mentions). --}}
+                            <flux:editor wire:model="newComment" data-mentions="{{ json_encode($this->users->pluck('name')->values()) }}" toolbar="bold italic | bullet ordered | link" />
 
-                                    {{-- Mention autocomplete --}}
-                                    <div x-show="open" x-cloak class="absolute bottom-full start-0 z-20 mb-1 max-h-48 w-64 max-w-[80vw] overflow-y-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
-                                        <template x-for="(name, i) in matches" :key="name">
-                                            <button type="button" x-on:mousedown.prevent="choose(name)" :class="i === active ? 'bg-brand-50 dark:bg-brand-950/40' : ''" class="block w-full px-3 py-2 text-start text-sm text-zinc-700 dark:text-zinc-200">@<span x-text="name"></span></button>
-                                        </template>
-                                    </div>
-                                </div>
+                            <div class="flex items-center justify-between gap-2">
                                 <label class="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300" title="{{ __('Bestand toevoegen') }}">
                                     <flux:icon name="paper-clip" class="size-5" />
                                     <input type="file" wire:model="newCommentAttachments" multiple class="hidden" />
                                 </label>
-                                <flux:button type="submit" variant="primary" icon="paper-airplane" />
+                                <flux:button type="submit" variant="primary" icon="paper-airplane">{{ __('Versturen') }}</flux:button>
                             </div>
+                            <flux:error name="newComment" />
                             <flux:error name="newCommentAttachments" />
                             <flux:error name="newCommentAttachments.*" />
                         </form>
                     </div>
-
-                    {{-- Activity log: collapsed by default so the history stays
-                         available but never crowds the comments above it. --}}
-                    @if ($task->activities->isNotEmpty())
-                        <flux:separator />
-                        <div x-data="{ open: false }" class="space-y-3">
-                            <button type="button" x-on:click="open = ! open"
-                                class="flex items-center gap-1.5 text-xs font-medium text-zinc-400 transition hover:text-zinc-600 dark:hover:text-zinc-300">
-                                <flux:icon name="chevron-right" variant="micro" x-bind:class="open && 'rotate-90'" class="transition" />
-                                {{ __('Activiteit') }}
-                                <span class="text-zinc-300 dark:text-zinc-600">{{ $task->activities->count() }}</span>
-                            </button>
-                            <div x-show="open" x-cloak x-transition.opacity class="space-y-2">
-                                @foreach ($task->activities as $activity)
-                                    <div wire:key="activity-{{ $activity->id }}" class="flex items-center gap-3 ps-1 text-xs text-zinc-400">
-                                        <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
-                                            <flux:icon name="arrow-path" variant="micro" />
-                                        </span>
-                                        <span>
-                                            <span class="font-medium text-zinc-600 dark:text-zinc-300">{{ $activity->user?->name ?? __('Systeem') }}</span>
-                                            {{ $activity->description() }}
-                                            · {{ $activity->created_at->diffForHumans() }}
-                                        </span>
-                                    </div>
-                                @endforeach
-                            </div>
-                        </div>
-                    @endif
                 </div>
 
                 {{-- Sidebar: properties (desktop only; mobile uses the compact bar up top) --}}
@@ -463,6 +422,37 @@
                             </div>
                         @endif
                     </div>
+
+                    {{-- Activity log: latest first, capped at 5 with a 'toon meer' toggle. --}}
+                    @if ($task->activities->isNotEmpty())
+                        <flux:separator />
+                        <div x-data="{ expanded: false }" class="space-y-3">
+                            <flux:subheading>{{ __('Activiteit') }}</flux:subheading>
+                            <div class="space-y-2">
+                                @foreach ($task->activities as $index => $activity)
+                                    <div wire:key="activity-{{ $activity->id }}"
+                                        @if ($index >= 5) x-show="expanded" x-cloak @endif
+                                        class="flex items-center gap-3 ps-1 text-xs text-zinc-400">
+                                        <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
+                                            <flux:icon name="arrow-path" variant="micro" />
+                                        </span>
+                                        <span>
+                                            <span class="font-medium text-zinc-600 dark:text-zinc-300">{{ $activity->user?->name ?? __('Systeem') }}</span>
+                                            {{ $activity->description() }}
+                                            · {{ $activity->created_at->diffForHumans() }}
+                                        </span>
+                                    </div>
+                                @endforeach
+                            </div>
+                            @if ($task->activities->count() > 5)
+                                <button type="button" x-on:click="expanded = ! expanded"
+                                    class="text-xs font-medium text-zinc-400 transition hover:text-zinc-600 dark:hover:text-zinc-300">
+                                    <span x-show="! expanded">{{ __('Toon meer') }} ({{ $task->activities->count() - 5 }})</span>
+                                    <span x-show="expanded" x-cloak>{{ __('Toon minder') }}</span>
+                                </button>
+                            @endif
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>

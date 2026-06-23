@@ -30,6 +30,12 @@
                 badge:color="brand" wire:navigate>
                 {{ __('Berichten') }}
             </flux:sidebar.item>
+            @php $unreadNotifications = auth()->user()->unreadNotifications()->count(); @endphp
+            <flux:sidebar.item icon="bell" :href="route('notifications.index')"
+                :current="request()->routeIs('notifications.*')" :badge="$unreadNotifications > 0 ? $unreadNotifications : null"
+                badge:color="red" wire:navigate>
+                {{ __('Meldingen') }}
+            </flux:sidebar.item>
             <flux:sidebar.item icon="sparkles" :href="route('tickets.ready')"
                 :current="request()->routeIs('tickets.ready')" wire:navigate>
                 {{ __('Klaar voor Claude Code') }}

@@ -32,6 +32,11 @@
             @empty
                 <div class="px-3 py-6 text-center text-sm text-zinc-500">{{ __('Geen meldingen.') }}</div>
             @endforelse
+
+            <flux:menu.separator />
+            <flux:menu.item :href="route('notifications.index')" wire:navigate icon="inbox-stack">
+                {{ __('Alle meldingen') }}
+            </flux:menu.item>
         </flux:menu>
     </flux:dropdown>
 </div>
