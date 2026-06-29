@@ -296,6 +296,29 @@ it('serves a video attachment inline with range support', function () {
     expect($response->headers->get('accept-ranges'))->toBe('bytes');
 });
 
+it('serves an attachment over its public token link without authentication', function () {
+    $task = Task::factory()->create();
+    $attachment = app(AttachmentService::class)->storeUpload(
+        UploadedFile::fake()->image('foto.png'),
+        $task,
+        $this->user,
+    );
+
+    expect($attachment->public_token)->not->toBeEmpty();
+
+    // A guest (logged out) can still open the file via its token URL.
+    auth()->logout();
+
+    $response = $this->get($attachment->publicUrl());
+
+    $response->assertOk();
+    expect($response->headers->get('content-disposition'))->toContain('inline');
+});
+
+it('returns a 404 for an unknown public token', function () {
+    $this->get(route('attachments.public', ['token' => 'does-not-exist']))->assertNotFound();
+});
+
 it('streams an image attachment inline for a permitted user', function () {
     $conversation = Conversation::factory()->create();
     $conversation->users()->sync([$this->user->id]);

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * A stored file attached to an email message, a task (ticket) or a chat message.
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Storage;
  * @property string $filename
  * @property string|null $mime_type
  * @property int $size
+ * @property string $public_token
  * @property int|null $uploaded_by
  */
 class Attachment extends Model
@@ -36,10 +38,27 @@ class Attachment extends Model
 
     protected static function booted(): void
     {
+        // Give every attachment an unguessable token so it can be shared via a
+        // public, login-free link (e.g. inside a copied AI prompt).
+        static::creating(function (Attachment $attachment): void {
+            if ((string) $attachment->public_token === '') {
+                $attachment->public_token = Str::random(40);
+            }
+        });
+
         // Remove the underlying file when the row is deleted.
         static::deleting(function (Attachment $attachment): void {
             Storage::disk($attachment->disk)->delete($attachment->path);
         });
+    }
+
+    /**
+     * A login-free URL that serves the file inline, gated only by the
+     * unguessable token. Safe to embed in shareable content like copied prompts.
+     */
+    public function publicUrl(): string
+    {
+        return route('attachments.public', ['token' => $this->public_token]);
     }
 
     /**

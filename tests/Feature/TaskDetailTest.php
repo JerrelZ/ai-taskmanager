@@ -8,6 +8,7 @@ use App\Models\Label;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\AttachmentService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Features\SupportTesting\Testable;
@@ -270,6 +271,31 @@ test('copying the transcript dispatches description and replies with inline imag
                 && str_contains($text, 'Ada Lovelace')
                 && str_contains($text, 'Goed gezien, ik fix dit.')
                 && str_contains($text, '![](https://cdn.example.com/fix.png)');
+        });
+});
+
+test('the transcript references attachments via their public login-free links', function () {
+    Storage::fake('local');
+
+    $service = app(AttachmentService::class);
+    $inline = $service->storeUpload(UploadedFile::fake()->image('scherm.png'), $this->task, $this->user);
+    $file = $service->storeUpload(UploadedFile::fake()->create('rapport.pdf', 8, 'application/pdf'), $this->task, $this->user);
+
+    // An inline image stored in the body uses the in-app (auth-gated) show URL.
+    $this->task->update([
+        'description' => '<p>Zie scherm.</p><p><img src="'.route('attachments.show', $inline).'"></p>',
+    ]);
+
+    openDetail()
+        ->call('copyTranscript')
+        ->assertDispatched('copy-to-clipboard', function (string $event, array $params) use ($inline, $file): bool {
+            $text = $params['text'];
+
+            return str_contains($text, $inline->publicUrl())
+                && str_contains($text, $file->publicUrl())
+                // The auth-gated URLs must not leak into the shareable prompt.
+                && ! str_contains($text, route('attachments.show', $inline))
+                && ! str_contains($text, route('attachments.download', $file));
         });
 });
 

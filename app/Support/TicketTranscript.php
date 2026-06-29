@@ -40,7 +40,28 @@ class TicketTranscript
             $sections[] = "## Reacties\n\n".$replies;
         }
 
-        return self::tidy(implode("\n\n", $sections));
+        return self::publishAttachmentUrls(self::tidy(implode("\n\n", $sections)), $task);
+    }
+
+    /**
+     * Swap every in-app (auth-gated) attachment URL for its public, login-free
+     * token URL, so an AI assistant reading the copied prompt can follow the
+     * links and actually see the referenced images and files.
+     */
+    private static function publishAttachmentUrls(string $transcript, Task $task): string
+    {
+        $attachments = $task->attachments
+            ->merge($task->comments->flatMap(fn (Comment $comment): Collection => $comment->attachments));
+
+        $replacements = [];
+
+        foreach ($attachments as $attachment) {
+            $publicUrl = $attachment->publicUrl();
+            $replacements[route('attachments.show', $attachment)] = $publicUrl;
+            $replacements[route('attachments.download', $attachment)] = $publicUrl;
+        }
+
+        return $replacements === [] ? $transcript : strtr($transcript, $replacements);
     }
 
     /**

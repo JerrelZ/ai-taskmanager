@@ -35,6 +35,24 @@ class AttachmentController extends Controller
     {
         abort_unless($this->canView($request->user(), $attachment), 403);
 
+        return $this->serveInline($attachment);
+    }
+
+    /**
+     * Serve a file inline using only its unguessable token — no authentication.
+     *
+     * The token is the capability: anyone holding the link may view the file.
+     * This is what powers shareable links embedded in copied AI prompts.
+     */
+    public function public(string $token): Response
+    {
+        $attachment = Attachment::where('public_token', $token)->firstOrFail();
+
+        return $this->serveInline($attachment);
+    }
+
+    private function serveInline(Attachment $attachment): Response
+    {
         $disk = Storage::disk($attachment->disk);
         abort_unless($disk->exists($attachment->path), 404);
 

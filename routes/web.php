@@ -28,6 +28,12 @@ Route::middleware('guest')->group(function () {
     Route::post('invitations/{token}', [InvitationController::class, 'store'])->name('invitations.store');
 });
 
+// Login-free attachment view, gated only by the unguessable token. Lets a
+// shared link (e.g. an image referenced inside a copied AI prompt) be opened
+// without authenticating.
+Route::get('a/{token}', [AttachmentController::class, 'public'])
+    ->name('attachments.public');
+
 Route::middleware('auth')->group(function () {
     Route::get('attachments/{attachment}/download', [AttachmentController::class, 'download'])
         ->name('attachments.download');
