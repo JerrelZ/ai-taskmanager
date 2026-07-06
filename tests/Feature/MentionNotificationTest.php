@@ -67,8 +67,10 @@ test('mentioning a teammate in a comment notifies them', function () {
     Notification::fake();
 
     $project = Project::factory()->create();
+    $project->members()->attach($this->user);
     $task = Task::factory()->for($project)->create();
     $mentioned = User::factory()->create(['name' => 'Sanne de Vries']);
+    $project->members()->attach($mentioned);
 
     Livewire::test(TaskDetail::class)
         ->call('open', $task->id)
@@ -84,11 +86,13 @@ test('a comment mention notifies even someone with messenger notifications off',
     // Mentions are direct, so they reach the recipient in-app regardless of their
     // messenger-notification preference; only project visibility gates them.
     $project = Project::factory()->create();
+    $project->members()->attach($this->user);
     $task = Task::factory()->for($project)->create();
     $mentioned = User::factory()->create([
         'name' => 'Sanne de Vries',
         'messenger_notifications_enabled' => false,
     ]);
+    $project->members()->attach($mentioned);
 
     Livewire::test(TaskDetail::class)
         ->call('open', $task->id)
@@ -102,6 +106,7 @@ test('a comment mention does not notify the author', function () {
     Notification::fake();
 
     $project = Project::factory()->create();
+    $project->members()->attach($this->user);
     $task = Task::factory()->for($project)->create();
 
     Livewire::test(TaskDetail::class)

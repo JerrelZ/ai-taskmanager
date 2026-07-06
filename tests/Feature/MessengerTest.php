@@ -98,6 +98,7 @@ test('a group conversation can be created with project members', function () {
     $project = Project::factory()->create();
     $a = User::factory()->create();
     $b = User::factory()->create();
+    $project->members()->attach([$this->user->id, $a->id, $b->id]);
 
     Livewire::test(Index::class)
         ->set('newGroupName', 'Design')
@@ -126,6 +127,7 @@ test('group members are limited to people in the chosen project', function () {
     $clientB = Client::factory()->create();
 
     $projectA = Project::factory()->create(['client_id' => $clientA->id]);
+    $projectA->members()->attach($this->user);
 
     $clientAUser = User::factory()->client($clientA)->create();
     $clientBUser = User::factory()->client($clientB)->create();
@@ -147,6 +149,7 @@ test('a message can be turned into a ticket (fallback without AI key)', function
     config()->set('services.anthropic.key', null);
 
     $project = Project::factory()->create();
+    $project->members()->attach($this->user);
     $group = Conversation::factory()->create();
     $group->users()->sync([$this->user->id]);
     $message = $group->postMessage($this->user, 'We moeten de checkout-bug fixen voor de livegang');
@@ -177,6 +180,7 @@ test('the AI draft uses the conversation as context and fills editable fields', 
     ]);
 
     $project = Project::factory()->create();
+    $project->members()->attach($this->user);
     $group = Conversation::factory()->create();
     $group->users()->sync([$this->user->id]);
     $group->postMessage($this->user, 'De checkout geeft een 500 bij afrekenen');
@@ -205,6 +209,7 @@ test('the ticket draft preselects the only visible project', function () {
     config()->set('services.anthropic.key', null);
 
     $project = Project::factory()->create();
+    $project->members()->attach($this->user);
     $group = Conversation::factory()->create();
     $group->users()->sync([$this->user->id]);
     $message = $group->postMessage($this->user, 'iets te doen');
@@ -217,6 +222,7 @@ test('the ticket draft preselects the only visible project', function () {
 
 test('creating a ticket from a message requires a title', function () {
     $project = Project::factory()->create();
+    $project->members()->attach($this->user);
     $group = Conversation::factory()->create();
     $group->users()->sync([$this->user->id]);
     $message = $group->postMessage($this->user, 'iets');

@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Livewire\Livewire;
 
 beforeEach(function () {
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->admin()->create();
     $this->actingAs($this->user);
     $this->project = Project::factory()->create();
 });

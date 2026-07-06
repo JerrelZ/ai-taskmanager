@@ -202,6 +202,18 @@
 
             <flux:textarea wire:model="editDescription" :label="__('Omschrijving')" rows="2" />
 
+            <flux:separator text="{{ __('Toegang') }}" />
+
+            @if ($this->teamMembers->isNotEmpty())
+                <flux:checkbox.group wire:model="memberIds" :label="__('Teamleden met toegang')" :description="__('Beheerders hebben altijd toegang tot elk project.')">
+                    @foreach ($this->teamMembers as $member)
+                        <flux:checkbox :value="$member->id" :label="$member->name" />
+                    @endforeach
+                </flux:checkbox.group>
+            @else
+                <flux:text class="text-sm">{{ __('Er zijn geen teamleden om toegang aan te geven.') }}</flux:text>
+            @endif
+
             <flux:separator text="{{ __('AI-context') }}" />
 
             <flux:input wire:model="editRepoPath" :label="__('Repository-pad')" placeholder="~/Herd/mijn-project" />

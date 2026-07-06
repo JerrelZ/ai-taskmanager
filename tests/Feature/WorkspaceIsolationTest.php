@@ -114,6 +114,7 @@ it('still lets a user open and edit a task in their own workspace', function () 
     $workspace = Workspace::factory()->create();
     $user = User::factory()->create(['workspace_id' => $workspace->id, 'role' => UserRole::Member]);
     $project = Project::factory()->create(['workspace_id' => $workspace->id]);
+    $project->members()->attach($user);
     $task = Task::factory()->for($project)->create(['title' => 'Eigen taak']);
 
     Livewire::actingAs($user)

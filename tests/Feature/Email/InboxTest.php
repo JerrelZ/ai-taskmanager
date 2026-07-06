@@ -41,6 +41,7 @@ beforeEach(function () {
     $this->user = User::factory()->create(['role' => UserRole::Member]);
     $this->actingAs($this->user);
     $this->project = Project::factory()->create();
+    $this->project->members()->attach($this->user);
     $this->account = EmailAccount::factory()->create(['project_id' => $this->project->id]);
 });
 
@@ -61,6 +62,7 @@ it('lists threads grouped by category and selecting one marks it read', function
 
 it('shows an empty state when no inbox is connected', function () {
     $project = Project::factory()->create();
+    $project->members()->attach($this->user);
 
     Livewire::test(Inbox::class, ['project' => $project])
         ->assertSee(__('Nog geen inbox gekoppeld'));

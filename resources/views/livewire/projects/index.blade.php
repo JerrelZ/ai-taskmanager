@@ -68,6 +68,14 @@
 
             <flux:textarea wire:model="description" :label="__('Omschrijving')" :placeholder="__('Optioneel')" rows="2" />
 
+            @if ($this->teamMembers->isNotEmpty())
+                <flux:checkbox.group wire:model="memberIds" :label="__('Teamleden met toegang')" :description="__('Beheerders hebben altijd toegang.')">
+                    @foreach ($this->teamMembers as $member)
+                        <flux:checkbox :value="$member->id" :label="$member->name" />
+                    @endforeach
+                </flux:checkbox.group>
+            @endif
+
             <flux:separator text="{{ __('AI-context (optioneel)') }}" />
 
             <flux:input wire:model="repoPath" :label="__('Repository-pad')" placeholder="~/Herd/mijn-project" />

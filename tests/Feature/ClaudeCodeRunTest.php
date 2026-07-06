@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\TaskPriority;
+use App\Enums\TaskStatus;
 use App\Jobs\RunClaudeCodeForTask;
 use App\Livewire\Email\Inbox;
 use App\Models\ClaudeCodeRun;
@@ -8,14 +10,13 @@ use App\Models\EmailFolder;
 use App\Models\EmailMessage;
 use App\Models\EmailThread;
 use App\Models\Project;
-use App\Models\Task;
 use App\Models\User;
 use App\Services\ClaudeCodeRunner;
 use Illuminate\Support\Facades\Bus;
 use Livewire\Livewire;
 
 beforeEach(function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->admin()->create());
 });
 
 function ticketThread(Project $project): array
@@ -33,8 +34,8 @@ function ticketThread(Project $project): array
     $task = $project->tasks()->create([
         'email_thread_id' => $thread->id,
         'title' => 'Fix login',
-        'status' => \App\Enums\TaskStatus::Backlog,
-        'priority' => \App\Enums\TaskPriority::None,
+        'status' => TaskStatus::Backlog,
+        'priority' => TaskPriority::None,
         'position' => 0,
     ]);
 

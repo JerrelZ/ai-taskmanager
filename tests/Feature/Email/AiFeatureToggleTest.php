@@ -40,6 +40,7 @@ beforeEach(function () {
     $this->user = User::factory()->create(['role' => UserRole::Member]);
     $this->actingAs($this->user);
     $this->project = Project::factory()->create();
+    $this->project->members()->attach($this->user);
     $this->account = EmailAccount::factory()->create(['project_id' => $this->project->id]);
 });
 

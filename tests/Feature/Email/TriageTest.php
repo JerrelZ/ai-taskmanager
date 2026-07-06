@@ -34,8 +34,10 @@ function triageThread(Project $project, string $subject, string $from = 'klant@v
 }
 
 beforeEach(function () {
-    $this->actingAs(User::factory()->create());
+    $this->user = User::factory()->create();
+    $this->actingAs($this->user);
     $this->project = Project::factory()->create();
+    $this->project->members()->attach($this->user);
 });
 
 it('archives a thread and hides it from the working inbox', function () {

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
@@ -74,9 +75,20 @@ class Project extends Model
     }
 
     /**
+     * Team members explicitly granted access to this project.
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function members(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)->withTimestamps();
+    }
+
+    /**
      * Limit projects to those a user is allowed to see. Everything is first
-     * fenced to the user's own workspace; within it team members see every
-     * project while clients see only their own client's projects.
+     * fenced to the user's own workspace; within it admins see every project,
+     * members see only the projects they belong to, and clients see only their
+     * own client's projects.
      *
      * @param  Builder<Project>  $query
      */
@@ -84,9 +96,17 @@ class Project extends Model
     {
         $query->where('workspace_id', $user->workspace_id);
 
-        if (! $user->isTeam()) {
-            $query->where('client_id', $user->client_id);
+        if ($user->isAdmin()) {
+            return;
         }
+
+        if ($user->isTeam()) {
+            $query->whereHas('members', fn (Builder $members) => $members->whereKey($user->id));
+
+            return;
+        }
+
+        $query->where('client_id', $user->client_id);
     }
 
     /**
@@ -99,7 +119,15 @@ class Project extends Model
             return false;
         }
 
-        return $user->isTeam() || $this->client_id === $user->client_id;
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if ($user->isTeam()) {
+            return $this->members()->whereKey($user->id)->exists();
+        }
+
+        return $this->client_id === $user->client_id;
     }
 
     /**
@@ -183,8 +211,8 @@ class Project extends Model
     }
 
     /**
-     * Users who have access to this project: the internal team plus, when the
-     * project belongs to a client, that client's users.
+     * Users who have access to this project: every admin, the members granted
+     * access, plus (when the project belongs to a client) that client's users.
      *
      * @return Builder<User>
      */
@@ -193,7 +221,8 @@ class Project extends Model
         return User::query()
             ->inWorkspace($this->workspace_id)
             ->where(function (Builder $query) {
-                $query->whereIn('role', [UserRole::Admin->value, UserRole::Member->value]);
+                $query->where('role', UserRole::Admin->value)
+                    ->orWhereHas('projects', fn (Builder $projects) => $projects->whereKey($this->id));
 
                 if ($this->client_id !== null) {
                     $query->orWhere('client_id', $this->client_id);

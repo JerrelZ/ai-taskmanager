@@ -16,6 +16,7 @@ beforeEach(function () {
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
     $this->project = Project::factory()->create();
+    $this->project->members()->attach($this->user);
 });
 
 test('the board updated event broadcasts on the workspace channel', function () {

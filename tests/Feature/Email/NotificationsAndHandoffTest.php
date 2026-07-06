@@ -39,6 +39,7 @@ beforeEach(function () {
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
     $this->project = Project::factory()->create();
+    $this->project->members()->attach($this->user);
 });
 
 it('notifies the assignee when a thread is assigned to them', function () {
@@ -80,6 +81,7 @@ it('builds a Claude Code prompt from the thread ticket', function () {
         'repo_path' => '~/Herd/revboost',
         'stack' => 'Laravel 13, Livewire 4',
     ]);
+    $project->members()->attach($this->user);
     $thread = notifThread($project);
 
     $component = Livewire::test(Inbox::class, ['project' => $project])

@@ -9,6 +9,7 @@ test('a team member only sees projects in their own workspace', function () {
     $workspace = Workspace::factory()->create();
     $teamMember = User::factory()->create(['workspace_id' => $workspace->id]);
     $ownProject = Project::factory()->create(['workspace_id' => $workspace->id]);
+    $ownProject->members()->attach($teamMember);
 
     $otherWorkspace = Workspace::factory()->create();
     $foreignProject = Project::factory()->create(['workspace_id' => $otherWorkspace->id]);
@@ -53,6 +54,9 @@ test('isVisibleTo guards across workspace and client boundaries', function () {
     $clientProject = Project::factory()->create(['workspace_id' => $workspace->id, 'client_id' => $client->id]);
     $internalProject = Project::factory()->create(['workspace_id' => $workspace->id, 'client_id' => null]);
     $foreignProject = Project::factory()->create(['workspace_id' => Workspace::factory()->create()->id]);
+
+    $clientProject->members()->attach($teamMember);
+    $internalProject->members()->attach($teamMember);
 
     expect($clientProject->isVisibleTo($teamMember))->toBeTrue()
         ->and($internalProject->isVisibleTo($teamMember))->toBeTrue()

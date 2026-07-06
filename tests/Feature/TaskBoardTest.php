@@ -7,12 +7,15 @@ use App\Models\Label;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use Illuminate\Broadcasting\Broadcasters\Broadcaster;
+use Illuminate\Support\Facades\Broadcast;
 use Livewire\Livewire;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
     $this->project = Project::factory()->create();
+    $this->project->members()->attach($this->user);
 });
 
 test('a task can be quick-created in a column', function () {
@@ -213,7 +216,7 @@ test('a column caps at the preview limit and reveals the rest on show more', fun
 
 test('creating a ticket survives a failing broadcaster (Reverb down)', function () {
     // A broadcaster that always throws, mimicking a down Reverb server.
-    Illuminate\Support\Facades\Broadcast::extend('exploding', fn () => new class extends Illuminate\Broadcasting\Broadcasters\Broadcaster
+    Broadcast::extend('exploding', fn () => new class extends Broadcaster
     {
         public function auth($request) {}
 

@@ -2,8 +2,10 @@
 
 namespace App\Livewire\Projects;
 
+use App\Enums\UserRole;
 use App\Models\Client;
 use App\Models\Project;
+use App\Models\User;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
@@ -32,9 +34,28 @@ class Index extends Component
 
     public ?int $clientId = null;
 
+    /** @var array<int, int> Ids of the members granted access to the new project. */
+    public array $memberIds = [];
+
     public function canManage(): bool
     {
         return Auth::user()->isTeam();
+    }
+
+    /**
+     * Team members (excluding admins, who always have access) that can be
+     * granted access to a project.
+     *
+     * @return Collection<int, User>
+     */
+    #[Computed]
+    public function teamMembers(): Collection
+    {
+        return User::query()
+            ->inWorkspace(Auth::user()->workspace_id)
+            ->where('role', UserRole::Member->value)
+            ->orderBy('name')
+            ->get();
     }
 
     /**
@@ -91,7 +112,17 @@ class Index extends Component
             'position' => (int) Project::where('workspace_id', $workspaceId)->max('position') + 1,
         ]);
 
-        $this->reset('name', 'description', 'repoPath', 'stack', 'context');
+        // Grant access to the chosen members plus the creator (when they are a
+        // member — admins already see every project).
+        $memberIds = $this->teamMembers->pluck('id')->intersect($this->memberIds);
+
+        if (Auth::user()->role === UserRole::Member) {
+            $memberIds = $memberIds->push(Auth::id());
+        }
+
+        $project->members()->sync($memberIds->unique()->all());
+
+        $this->reset('name', 'description', 'repoPath', 'stack', 'context', 'memberIds');
         $this->color = 'blue';
 
         Flux::modal('create-project')->close();

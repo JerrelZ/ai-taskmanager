@@ -67,7 +67,9 @@ it('appends the summary to the ticket description', function () {
 
     $thread = summariserThread();
     $project = Project::find($thread->project_id);
-    $this->actingAs(User::factory()->create());
+    $user = User::factory()->create();
+    $this->actingAs($user);
+    $project->members()->attach($user);
 
     Livewire::test(Inbox::class, ['project' => $project])
         ->call('selectThread', $thread->id)

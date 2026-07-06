@@ -7,7 +7,7 @@ use App\Models\User;
 use App\Models\Workspace;
 
 beforeEach(function () {
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->admin()->create();
     $this->actingAs($this->user);
 });
 

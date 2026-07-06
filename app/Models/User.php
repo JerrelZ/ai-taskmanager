@@ -177,6 +177,17 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Projects this user has been granted access to (team members only; admins
+     * and clients derive access from their role, not from this pivot).
+     *
+     * @return BelongsToMany<Project, $this>
+     */
+    public function projects(): BelongsToMany
+    {
+        return $this->belongsToMany(Project::class)->withTimestamps();
+    }
+
+    /**
      * Internal team member (admin or member) with access to all projects.
      */
     public function isTeam(): bool

@@ -87,7 +87,7 @@ it('only shows a private workspace project after switching into it', function ()
     $company = Workspace::factory()->create();
     $personal = Workspace::factory()->create();
 
-    $owner = User::factory()->create(['workspace_id' => $company->id]);
+    $owner = User::factory()->admin()->create(['workspace_id' => $company->id]);
     $owner->workspaces()->attach($personal);
 
     $personalProject = Project::factory()->create(['workspace_id' => $personal->id]);

@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Bus;
 use Livewire\Livewire;
 
 beforeEach(function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->admin()->create());
 });
 
 it('lists ready tickets and hides not-ready ones', function () {

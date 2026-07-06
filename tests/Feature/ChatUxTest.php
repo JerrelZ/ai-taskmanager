@@ -120,6 +120,7 @@ it('pushes the unread total to the browser when opening a conversation', functio
 it('creates a ticket from a /ticket slash command in a project chat', function () {
     $project = Project::factory()->create();
     $this->user->update(['role' => UserRole::Member]);
+    $project->members()->attach($this->user);
 
     Livewire::test(Chat::class, ['project' => $project])
         ->set('body', '/ticket Login knop werkt niet')
@@ -164,6 +165,7 @@ it('leaves an unknown #ref as plain text', function () {
 
 it('opens a deep-linked task on the board on load', function () {
     $project = Project::factory()->create();
+    $project->members()->attach($this->user);
     $task = Task::factory()->for($project)->create();
 
     Livewire::test(Board::class, ['project' => $project, 'openTaskId' => $task->id])

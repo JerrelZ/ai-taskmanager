@@ -25,6 +25,7 @@ beforeEach(function () {
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
     $this->project = Project::factory()->create();
+    $this->project->members()->attach($this->user);
     $this->account = EmailAccount::factory()->create(['project_id' => $this->project->id]);
 });
 
@@ -135,6 +136,7 @@ it('does not duplicate the outbound message when the Sent folder is later synced
 
 it('creates an encrypted email account from the settings form', function () {
     $project = Project::factory()->create();
+    $project->members()->attach($this->user);
 
     Livewire::test(Inbox::class, ['project' => $project])
         ->call('openSettings')
@@ -156,6 +158,7 @@ it('creates an encrypted email account from the settings form', function () {
 
 it('stores the configured sync window in days', function () {
     $project = Project::factory()->create();
+    $project->members()->attach($this->user);
 
     Livewire::test(Inbox::class, ['project' => $project])
         ->call('openSettings')

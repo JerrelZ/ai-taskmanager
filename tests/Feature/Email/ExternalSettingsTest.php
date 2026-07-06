@@ -4,11 +4,14 @@ use App\Livewire\Email\Inbox;
 use App\Models\EmailAccount;
 use App\Models\Project;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 
 beforeEach(function () {
-    $this->actingAs(User::factory()->create());
+    $this->user = User::factory()->create();
+    $this->actingAs($this->user);
     $this->project = Project::factory()->create();
+    $this->project->members()->attach($this->user);
 });
 
 it('saves external database and API settings from the form', function () {
@@ -65,6 +68,6 @@ it('stores the token encrypted at rest', function () {
         ->set('apiToken', 'super-secret-token')
         ->call('saveAccount');
 
-    $raw = \Illuminate\Support\Facades\DB::table('email_accounts')->where('id', $account->id)->value('external_api_token');
+    $raw = DB::table('email_accounts')->where('id', $account->id)->value('external_api_token');
     expect($raw)->not->toContain('super-secret-token');
 });

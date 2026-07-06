@@ -5,6 +5,7 @@ namespace App\Livewire\Projects;
 use App\Enums\ProjectStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
+use App\Enums\UserRole;
 use App\Events\TaskBoardUpdated;
 use App\Livewire\Concerns\CopiesTaskPrompt;
 use App\Livewire\Concerns\LimitsBoardColumns;
@@ -88,6 +89,9 @@ class Board extends Component
 
     public ?int $editClientId = null;
 
+    /** @var array<int, int> Ids of the members granted access to the project. */
+    public array $memberIds = [];
+
     public function mount(Project $project): void
     {
         abort_unless($project->isVisibleTo(Auth::user()), 403);
@@ -120,6 +124,7 @@ class Board extends Component
         $this->editKey = (string) $this->project->key;
         $this->editStatus = $this->project->status->value;
         $this->editClientId = $this->project->client_id;
+        $this->memberIds = $this->project->members()->pluck('users.id')->all();
 
         Flux::modal('project-settings')->show();
     }
@@ -131,6 +136,22 @@ class Board extends Component
     public function clients(): Collection
     {
         return Client::query()->orderBy('name')->get();
+    }
+
+    /**
+     * Team members (excluding admins, who always have access) that can be
+     * granted access to this project.
+     *
+     * @return Collection<int, User>
+     */
+    #[Computed]
+    public function teamMembers(): Collection
+    {
+        return User::query()
+            ->inWorkspace($this->project->workspace_id)
+            ->where('role', UserRole::Member->value)
+            ->orderBy('name')
+            ->get();
     }
 
     /**
@@ -168,6 +189,12 @@ class Board extends Component
             'stack' => $validated['editStack'] !== '' ? $validated['editStack'] : null,
             'context' => $validated['editContext'] !== '' ? $validated['editContext'] : null,
         ]);
+
+        // Only sync ids that are genuine team members of this workspace so a
+        // tampered request can't attach arbitrary users.
+        $this->project->members()->sync(
+            $this->teamMembers->pluck('id')->intersect($this->memberIds)->all()
+        );
 
         Flux::modal('project-settings')->close();
         Flux::toast(variant: 'success', text: __('Project bijgewerkt.'));

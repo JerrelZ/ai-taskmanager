@@ -38,6 +38,7 @@ beforeEach(function () {
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
     $this->project = Project::factory()->create();
+    $this->project->members()->attach($this->user);
 });
 
 it('assigns a thread to a teammate and clears it again', function () {

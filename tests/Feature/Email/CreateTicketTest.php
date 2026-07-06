@@ -36,8 +36,10 @@ function threadWithInbound(Project $project, string $subject = 'Vraag over lever
 }
 
 beforeEach(function () {
-    $this->actingAs(User::factory()->create());
+    $this->user = User::factory()->create();
+    $this->actingAs($this->user);
     $this->project = Project::factory()->create();
+    $this->project->members()->attach($this->user);
 });
 
 it('creates a ticket linked to the email thread', function () {

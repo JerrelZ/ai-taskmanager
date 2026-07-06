@@ -21,7 +21,7 @@ use Livewire\Livewire;
 
 beforeEach(function () {
     Storage::fake('local');
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->admin()->create();
     $this->actingAs($this->user);
 });
 

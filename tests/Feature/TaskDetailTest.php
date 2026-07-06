@@ -18,6 +18,7 @@ beforeEach(function () {
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
     $this->project = Project::factory()->create();
+    $this->project->members()->attach($this->user);
     $this->task = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create();
 });
 

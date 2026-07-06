@@ -16,12 +16,18 @@ use Livewire\Livewire;
 
 function accountWithExternalDb(): EmailAccount
 {
-    return EmailAccount::factory()->create([
+    $account = EmailAccount::factory()->create([
         'external_db_dsn' => [
             'host' => '127.0.0.1', 'port' => 3306, 'database' => 'revboost',
             'username' => 'reader', 'password' => 'secret',
         ],
     ]);
+
+    if ($id = auth()->id()) {
+        Project::find($account->project_id)?->members()->attach($id);
+    }
+
+    return $account;
 }
 
 function inboundThreadFor(EmailAccount $account, string $from = 'klant@voorbeeld.nl'): EmailThread

@@ -12,7 +12,8 @@ beforeEach(function () {
 });
 
 test('a user without the feature can not copy a prompt', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs($user = User::factory()->create());
+    $this->project->members()->attach($user);
 
     Livewire::test(TaskDetail::class)
         ->call('open', $this->task->id)
@@ -22,7 +23,8 @@ test('a user without the feature can not copy a prompt', function () {
 });
 
 test('a user with the feature can copy a prompt', function () {
-    $this->actingAs(User::factory()->canCopyPrompt()->create());
+    $this->actingAs($user = User::factory()->canCopyPrompt()->create());
+    $this->project->members()->attach($user);
 
     Livewire::test(TaskDetail::class)
         ->call('open', $this->task->id)
