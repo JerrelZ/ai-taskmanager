@@ -21,8 +21,7 @@ class EmailContactLinkFactory extends Factory
         return [
             'email_account_id' => EmailAccount::factory(),
             'email' => fake()->unique()->safeEmail(),
-            'external_table' => 'customers',
-            'external_id_column' => 'id',
+            'external_resource' => EmailContactLink::RESOURCE_USERS,
             'external_id' => (string) fake()->numberBetween(1, 9999),
             'label' => fake()->name(),
             'linked_by' => null,

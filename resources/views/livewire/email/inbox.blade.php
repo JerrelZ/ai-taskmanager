@@ -312,8 +312,8 @@
                         {{ __('Terug') }}
                     </flux:button>
 
-                    {{-- Sender ↔ external database link --}}
-                    @if (auth()->user()->isTeam() && $this->account()?->external_db_dsn && $this->senderForLink())
+                    {{-- Sender ↔ support-API contact link --}}
+                    @if (auth()->user()->isTeam() && $this->account()?->external_api_base_url && $this->senderForLink())
                         <div class="mb-4 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
                             <flux:heading size="sm" class="mb-2 flex items-center gap-2">
                                 <flux:icon name="identification" class="size-4" /> {{ __('Gekoppeld contact') }}
@@ -327,7 +327,7 @@
                                             {{ $this->linkedContact->label ?: $this->linkedContact->external_id }}
                                         </div>
                                         <div class="text-[11px] text-zinc-400">
-                                            {{ $this->linkedContact->external_table }} · {{ $this->linkedContact->external_id_column }}={{ $this->linkedContact->external_id }}
+                                            {{ $this->linkedContact->external_resource }} #{{ $this->linkedContact->external_id }}
                                         </div>
                                     </div>
                                     <flux:button wire:click="unlinkContact" variant="subtle" size="xs" icon="x-mark"
@@ -344,7 +344,7 @@
                                         @endforeach
                                     </dl>
                                 @else
-                                    <flux:text class="mt-2 text-xs text-zinc-400">{{ __('Rij niet gevonden in de database.') }}</flux:text>
+                                    <flux:text class="mt-2 text-xs text-zinc-400">{{ __('Record niet gevonden via de support-API.') }}</flux:text>
                                 @endif
                             @elseif ($showLinkPanel)
                                 @php($suggestions = $this->contactSuggestions)
@@ -352,26 +352,22 @@
                                     <flux:text class="mb-2 text-xs text-zinc-500">{{ __('Suggesties voor :email', ['email' => $this->senderForLink()]) }}</flux:text>
                                     <div class="space-y-1">
                                         @foreach ($suggestions as $s)
-                                            <button type="button" wire:key="sugg-{{ $s['table'] }}-{{ $s['id'] }}"
-                                                wire:click="linkContact(@js($s['table']), @js($s['id_column']), @js($s['id']), @js($s['label']))"
+                                            <button type="button" wire:key="sugg-{{ $s['resource'] }}-{{ $s['id'] }}"
+                                                wire:click="linkContact(@js($s['resource']), @js($s['id']), @js($s['label']))"
                                                 class="block w-full rounded border border-zinc-200 px-2 py-1.5 text-left text-xs transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
                                                 <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $s['label'] }}</span>
-                                                <span class="text-zinc-400"> · {{ $s['table'] }}</span>
+                                                <span class="text-zinc-400"> · {{ $s['resource'] }} #{{ $s['id'] }}</span>
                                                 <div class="truncate text-[11px] text-zinc-400">{{ $s['preview'] }}</div>
                                             </button>
                                         @endforeach
                                     </div>
                                 @else
-                                    <flux:text class="mb-2 text-xs text-zinc-500">{{ __('Geen automatische match gevonden. Koppel handmatig:') }}</flux:text>
+                                    <flux:text class="mb-2 text-xs text-zinc-500">{{ __('Geen automatische match gevonden. Koppel handmatig op klant-id:') }}</flux:text>
                                 @endif
 
                                 {{-- Manual fallback --}}
                                 <form wire:submit="linkManual" class="mt-3 space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
-                                    <flux:input wire:model="manualTable" size="sm" :placeholder="__('tabel (bv. customers)')" />
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <flux:input wire:model="manualIdColumn" size="sm" :placeholder="__('id-kolom')" />
-                                        <flux:input wire:model="manualId" size="sm" :placeholder="__('waarde')" />
-                                    </div>
+                                    <flux:input wire:model="manualId" size="sm" :placeholder="__('klant-id (bv. 8)')" />
                                     <flux:button type="submit" variant="primary" size="xs" class="w-full">{{ __('Handmatig koppelen') }}</flux:button>
                                 </form>
                             @else
@@ -595,24 +591,8 @@
                 <flux:input wire:model="syncDays" type="number" min="1" max="3650" :label="__('E-mails ophalen tot (dagen terug)')"
                     placeholder="30" :description="__('Bij het eerste ophalen worden alleen e-mails vanaf dit aantal dagen terug binnengehaald. Laat leeg voor de volledige geschiedenis.')" />
 
-                {{-- External (read-only) database --}}
-                <flux:separator :text="__('Externe database (read-only)')" />
-                <div class="grid grid-cols-3 gap-3">
-                    <flux:input wire:model="dbHost" :label="__('DB-host')" class="col-span-2" placeholder="127.0.0.1" />
-                    <flux:input wire:model="dbPort" type="number" :label="__('Poort')" />
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <flux:input wire:model="dbDatabase" :label="__('Database')" placeholder="forge" />
-                    <flux:input wire:model="dbUsername" :label="__('Gebruiker')" placeholder="reader" />
-                </div>
-                <flux:input wire:model="dbPassword" type="password" :label="__('DB-wachtwoord')"
-                    :description="$this->account()?->external_db_dsn ? __('Laat leeg om het huidige wachtwoord te behouden.') : null" />
-                <flux:button wire:click="testExternalDb" type="button" variant="ghost" size="sm" icon="circle-stack" class="self-start">
-                    {{ __('Database testen') }}
-                </flux:button>
-
-                {{-- External support API --}}
-                <flux:separator :text="__('Support-API (optioneel)')" />
+                {{-- External support API: the only route to customer data --}}
+                <flux:separator :text="__('Support-API (read-only)')" />
                 <flux:input wire:model="apiBaseUrl" :label="__('API-basis-URL')" placeholder="https://www.revboost.nl/api/internal/v1"
                     :description="__('Volledige basis-URL inclusief pad. Endpoints worden hier relatief aan opgevraagd, bijv. /users.')" />
                 <flux:input wire:model="apiToken" type="password" :label="__('API-token')"

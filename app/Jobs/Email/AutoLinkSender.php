@@ -6,13 +6,15 @@ use App\Models\EmailContactLink;
 use App\Models\EmailMessage;
 use App\Models\EmailThread;
 use App\Services\Email\ContactLinkSuggester;
+use App\Services\Email\ExternalProjectApi;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
 /**
- * Auto-triage: when a new inbound email arrives, link the sender to its external
- * database row automatically — but only when there is exactly one confident
- * match, so a human is never second-guessed. Ambiguous senders stay manual.
+ * Auto-triage: when a new inbound email arrives, link the sender to their
+ * support-API record automatically — but only when there is exactly one
+ * confident match, so a human is never second-guessed. Ambiguous senders stay
+ * manual.
  */
 class AutoLinkSender implements ShouldQueue
 {
@@ -20,12 +22,12 @@ class AutoLinkSender implements ShouldQueue
 
     public function __construct(public readonly int $emailThreadId) {}
 
-    public function handle(ContactLinkSuggester $suggester): void
+    public function handle(ContactLinkSuggester $suggester, ExternalProjectApi $api): void
     {
         $thread = EmailThread::with(['account', 'messages'])->find($this->emailThreadId);
         $account = $thread?->account;
 
-        if ($thread === null || $account === null || blank($account->external_db_dsn)) {
+        if ($thread === null || $account === null || ! $api->configured($account)) {
             return;
         }
 
@@ -61,8 +63,7 @@ class AutoLinkSender implements ShouldQueue
         EmailContactLink::create([
             'email_account_id' => $account->id,
             'email' => $email,
-            'external_table' => $match['table'],
-            'external_id_column' => $match['id_column'],
+            'external_resource' => $match['resource'],
             'external_id' => $match['id'],
             'label' => $match['label'] ?: null,
             'linked_by' => null, // null = automatically linked

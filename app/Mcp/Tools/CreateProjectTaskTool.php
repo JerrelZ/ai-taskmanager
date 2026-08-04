@@ -13,7 +13,7 @@ use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Create a follow-up task in a project (in this app, not the external database). Use this to turn an email or a database finding into an action item.')]
+#[Description('Create a follow-up task in a project (in this app, never in the customer\'s own systems). Use this to turn an email or a support-API finding into an action item.')]
 class CreateProjectTaskTool extends Tool
 {
     public function handle(Request $request): Response|ResponseFactory

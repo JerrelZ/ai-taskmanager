@@ -23,9 +23,10 @@ class ExternalProjectApi
     }
 
     /**
-     * Look up a user by email address.
+     * Look up a user by email address. Entries are whatever the project's API
+     * returned, so callers must validate their shape before using them.
      *
-     * @return array<int, array<string, mixed>>
+     * @return array<array-key, mixed>
      */
     public function lookupUserByEmail(EmailAccount $account, string $email): array
     {

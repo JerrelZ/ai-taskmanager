@@ -11,13 +11,14 @@ use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('List the projects and which of them have an external customer database and a connected inbox. Use this to discover the project key to pass to the other tools.')]
+#[Description('List the projects and which of them have a support API and a connected inbox. Use this to discover the project key to pass to the other tools.')]
 class ListProjectsTool extends Tool
 {
     public function handle(Request $request): Response|ResponseFactory
     {
-        $withDb = EmailAccount::query()
-            ->whereNotNull('external_db_dsn')
+        $withApi = EmailAccount::query()
+            ->whereNotNull('external_api_base_url')
+            ->whereNotNull('external_api_token')
             ->pluck('project_id')
             ->all();
 
@@ -30,7 +31,7 @@ class ListProjectsTool extends Tool
                 'key' => $project->key,
                 'name' => $project->name,
                 'id' => $project->id,
-                'has_external_database' => in_array($project->id, $withDb, true),
+                'has_support_api' => in_array($project->id, $withApi, true),
                 'has_inbox' => in_array($project->id, $withInbox, true),
             ])
             ->all();

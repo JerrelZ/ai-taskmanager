@@ -5,17 +5,14 @@ use App\Models\EmailFolder;
 use App\Models\EmailMessage;
 use App\Models\EmailThread;
 use App\Services\Email\EmailContextInvestigator;
-use App\Services\Email\ExternalProjectDb;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 function investigatorThread(): EmailThread
 {
     $account = EmailAccount::factory()->create([
-        'external_db_dsn' => [
-            'host' => '127.0.0.1', 'port' => 3306, 'database' => 'revboost',
-            'username' => 'reader', 'password' => 'secret',
-        ],
+        'external_api_base_url' => 'https://revboost.test/api/internal/v1',
+        'external_api_token' => 'secret-token',
     ]);
     $folder = EmailFolder::firstOrCreate(['email_account_id' => $account->id, 'name' => 'INBOX']);
 
@@ -37,18 +34,21 @@ function investigatorThread(): EmailThread
     return $thread;
 }
 
-/** Two-step agent run: query the schema, then record findings. */
+/** Two-step agent run: look the sender up on the API, then record findings. */
 function fakeAgentRun(): void
 {
     config()->set('services.anthropic.key', 'test-key');
 
     Http::fake([
+        'https://revboost.test/api/internal/v1/*' => Http::response([
+            'data' => [['id' => 8, 'name' => 'Thomas', 'account_type' => 'advertiser']],
+        ], 200),
         'https://api.anthropic.com/*' => Http::sequence()
             ->push([
                 'stop_reason' => 'tool_use',
                 'content' => [[
-                    'type' => 'tool_use', 'id' => 'tu_1', 'name' => 'query_database',
-                    'input' => ['sql' => 'SHOW TABLES'],
+                    'type' => 'tool_use', 'id' => 'tu_1', 'name' => 'lookup_user_by_email',
+                    'input' => ['email' => 'thomas@justanotherstore.nl'],
                 ]],
             ])
             ->push([
@@ -58,8 +58,8 @@ function fakeAgentRun(): void
                     'input' => [
                         'summary' => 'Thomas is een adverteerder met een openstaande uitbetaling.',
                         'entities' => [
-                            ['table' => 'users', 'id' => '8', 'label' => 'Justanotherstore', 'relevance' => 'afzender-account'],
-                            ['table' => 'advertiser_additional_infos', 'id' => '5', 'label' => 'Just Another Store B.V.', 'relevance' => 'adverteerder'],
+                            ['resource' => 'users', 'id' => '8', 'label' => 'Justanotherstore', 'relevance' => 'afzender-account'],
+                            ['resource' => 'invoices', 'id' => '5', 'label' => 'Factuur 2026-05', 'relevance' => 'openstaand'],
                         ],
                     ],
                 ]],
@@ -67,24 +67,39 @@ function fakeAgentRun(): void
     ]);
 }
 
-it('lets the AI investigate the database and returns structured entities', function () {
+it('lets the AI investigate through the support API and returns structured entities', function () {
     fakeAgentRun();
-    $this->mock(ExternalProjectDb::class, function ($mock) {
-        $mock->shouldReceive('select')->andReturn([(object) ['Tables_in_revboost' => 'users']]);
-    });
 
     $thread = investigatorThread();
     $result = app(EmailContextInvestigator::class)->investigate($thread);
 
     expect($result['entities'])->toHaveCount(2);
-    expect($result['entities'][0]['table'])->toBe('users');
+    expect($result['entities'][0]['resource'])->toBe('users');
     expect($result['entities'][0]['id'])->toBe('8');
     expect($result['markdown'])->toContain('Context voor Claude Code');
     expect($result['markdown'])->toContain('`users` #8');
-    expect($result['markdown'])->toContain('`advertiser_additional_infos` #5');
+    expect($result['markdown'])->toContain('`invoices` #5');
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/api/internal/v1/users?email='));
 });
 
-it('prefers the support API tools when an API is configured', function () {
+it('offers no database tool to the model at all', function () {
+    fakeAgentRun();
+
+    app(EmailContextInvestigator::class)->investigate(investigatorThread());
+
+    Http::assertSent(function ($request) {
+        if (! str_contains($request->url(), 'api.anthropic.com')) {
+            return false;
+        }
+
+        $names = collect($request->data()['tools'] ?? [])->pluck('name');
+
+        return ! $names->contains('query_database') && $names->contains('lookup_user_by_email');
+    });
+});
+
+it('calls the customer summary endpoint when the model asks for it', function () {
     config()->set('services.anthropic.key', 'test-key');
 
     Http::fake([
@@ -105,26 +120,13 @@ it('prefers the support API tools when an API is configured', function () {
                     'type' => 'tool_use', 'id' => 'tu_2', 'name' => 'record_findings',
                     'input' => [
                         'summary' => 'Adverteerder met 2 openstaande facturen.',
-                        'entities' => [['table' => 'users', 'id' => '8', 'label' => 'Just Another Store B.V.', 'relevance' => 'afzender']],
+                        'entities' => [['resource' => 'users', 'id' => '8', 'label' => 'Just Another Store B.V.', 'relevance' => 'afzender']],
                     ],
                 ]],
             ]),
     ]);
 
-    $account = EmailAccount::factory()->create([
-        'external_db_dsn' => ['host' => '127.0.0.1', 'port' => 3306, 'database' => 'revboost', 'username' => 'r', 'password' => 'p'],
-        'external_api_base_url' => 'https://revboost.test/api/internal/v1',
-        'external_api_token' => 'tok',
-    ]);
-    $thread = EmailThread::factory()->create(['email_account_id' => $account->id, 'project_id' => $account->project_id]);
-    EmailMessage::factory()->create([
-        'email_account_id' => $account->id,
-        'email_thread_id' => $thread->id,
-        'direction' => EmailMessage::DIRECTION_INBOUND,
-        'from_email' => 'thomas@justanotherstore.nl',
-    ]);
-
-    $result = app(EmailContextInvestigator::class)->investigate($thread);
+    $result = app(EmailContextInvestigator::class)->investigate(investigatorThread());
 
     expect($result['entities'])->toHaveCount(1);
     Http::assertSent(fn ($request) => str_contains($request->url(), '/api/internal/v1/users/8/summary'));
@@ -162,10 +164,10 @@ it('includes a readable attachment as a content block for the AI', function () {
     });
 });
 
-it('errors gracefully when the project has no external database', function () {
+it('errors gracefully when the project has no support API', function () {
     config()->set('services.anthropic.key', 'test-key');
 
-    $account = EmailAccount::factory()->create(['external_db_dsn' => null]);
+    $account = EmailAccount::factory()->create(['external_api_base_url' => null]);
     $thread = EmailThread::factory()->create([
         'email_account_id' => $account->id,
         'project_id' => $account->project_id,

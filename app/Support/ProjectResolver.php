@@ -7,8 +7,8 @@ use App\Models\Project;
 
 /**
  * Resolves a free-form project reference (key, id, or name) used by AI clients
- * into a Project and its linked email account, which carries the external
- * database credentials.
+ * into a Project and its linked email account, which carries the support-API
+ * credentials.
  */
 class ProjectResolver
 {

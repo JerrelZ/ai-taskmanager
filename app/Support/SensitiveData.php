@@ -3,11 +3,11 @@
 namespace App\Support;
 
 /**
- * Redacts credential-like values from external-database rows before they are
- * ever rendered in the inbox context panel, contact-link previews, or handed to
- * the AI investigator. The external DB is read with `SELECT *`, so a matched
- * row can carry a `password` hash, API token, or similar — those must never
- * reach the screen, a ticket, or the model.
+ * Redacts credential-like values from support-API records before they are ever
+ * rendered in the inbox context panel or in contact-link previews. The API is
+ * expected to publish only safe fields, but a project could widen a response at
+ * any time — this is the belt to that braces, so a token or hash can never
+ * reach the screen or a ticket.
  */
 class SensitiveData
 {

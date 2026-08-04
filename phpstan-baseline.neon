@@ -25,12 +25,6 @@ parameters:
 			path: app/Livewire/Email/Inbox.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>external_db_dsn" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Livewire/Email/Inbox.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>from_email" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -167,12 +161,6 @@ parameters:
 			identifier: return.type
 			count: 1
 			path: app/Mcp/Tools/LookupContactByEmailTool.php
-
-		-
-			message: '#^Method App\\Mcp\\Tools\\QueryProjectDatabaseTool\:\:schema\(\) should return array\<string, Illuminate\\Contracts\\JsonSchema\\JsonSchema\> but returns array\<string, Illuminate\\JsonSchema\\Types\\ArrayType\|Illuminate\\JsonSchema\\Types\\StringType\>\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Mcp/Tools/QueryProjectDatabaseTool.php
 
 		-
 			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'

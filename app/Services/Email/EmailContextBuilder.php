@@ -6,20 +6,19 @@ use App\Models\EmailAccount;
 use App\Models\EmailContactLink;
 use App\Models\EmailThread;
 use App\Models\Project;
-use App\Support\SensitiveData;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 
 /**
  * Assembles a Markdown context blob shown beside an email thread, drawing on
  * three sources: existing app data, the project's git repository, and the
- * project's external (read-only) MySQL database. Each source is best-effort —
- * one failing source never breaks the panel.
+ * project's read-only support API. Each source is best-effort — one failing
+ * source never breaks the panel.
  */
 class EmailContextBuilder
 {
     public function __construct(
-        private readonly ExternalProjectDb $externalDb,
+        private readonly ExternalProjectApi $api,
         private readonly ContactLinkSuggester $linkSuggester,
     ) {}
 
@@ -33,7 +32,7 @@ class EmailContextBuilder
         $sections = array_filter([
             $this->appSection($thread, $project),
             $this->repoSection($project),
-            $this->externalDbSection($thread->account, $senderEmail),
+            $this->supportApiSection($thread->account, $senderEmail),
         ]);
 
         return implode("\n", $sections);
@@ -100,15 +99,15 @@ class EmailContextBuilder
         return implode("\n", $lines)."\n";
     }
 
-    private function externalDbSection(EmailAccount $account, ?string $senderEmail): ?string
+    private function supportApiSection(EmailAccount $account, ?string $senderEmail): ?string
     {
-        if (blank($account->external_db_dsn)) {
+        if (! $this->api->configured($account)) {
             return null;
         }
 
-        $lines = ['## Projectdatabase'];
+        $lines = ['## Klantgegevens (support-API)'];
 
-        // A confirmed sender→row link is authoritative; use it instead of guessing.
+        // A confirmed sender→record link is authoritative; use it instead of guessing.
         $link = $senderEmail !== null
             ? EmailContactLink::where('email_account_id', $account->id)->where('email', $senderEmail)->first()
             : null;
@@ -117,7 +116,7 @@ class EmailContextBuilder
             if ($link !== null) {
                 $resolved = $this->linkSuggester->resolve($link);
 
-                $lines[] = "### Gekoppeld contact ({$link->external_table})";
+                $lines[] = "### Gekoppeld contact ({$link->external_resource})";
 
                 if ($resolved !== null) {
                     $lines[] = "- **{$resolved['label']}**";
@@ -125,90 +124,29 @@ class EmailContextBuilder
                         $lines[] = "  - {$key}: ".Str::limit((string) $value, 120);
                     }
                 } else {
-                    $lines[] = "- _Gekoppelde rij ({$link->external_id_column}={$link->external_id}) niet gevonden._";
+                    $lines[] = "- _Gekoppeld record ({$link->external_resource} #{$link->external_id}) niet gevonden._";
                 }
 
                 return implode("\n", $lines)."\n";
             }
 
-            $tables = collect($this->externalDb->select($account, 'SHOW TABLES'))
-                ->map(fn (object $row): string => (string) collect((array) $row)->first())
-                ->all();
-
-            $lines[] = '- **Tabellen:** '.(count($tables) > 0
-                ? Str::limit(implode(', ', $tables), 300)
-                : '(geen)');
-
             $matches = $senderEmail !== null
-                ? $this->lookupSender($account, $senderEmail)
+                ? $this->linkSuggester->suggest($account, $senderEmail)
                 : [];
 
-            if ($matches !== []) {
-                $lines[] = '';
+            if ($matches === []) {
+                $lines[] = '- _Geen klant gevonden voor '.($senderEmail ?? 'deze afzender').'._';
+            } else {
                 $lines[] = "### Mogelijke matches voor {$senderEmail}";
                 foreach ($matches as $match) {
-                    $lines[] = "- **{$match['table']}**: ".Str::limit($match['row'], 200);
+                    $lines[] = "- **{$match['label']}** ({$match['resource']} #{$match['id']}): ".Str::limit($match['preview'], 200);
                 }
             }
         } catch (\Throwable $e) {
-            $lines[] = '- _Kon database niet lezen: '.Str::limit($e->getMessage(), 120).'_';
+            $lines[] = '- _Kon de support-API niet lezen: '.Str::limit($e->getMessage(), 120).'_';
         }
 
         return implode("\n", $lines)."\n";
-    }
-
-    /**
-     * Find rows whose email-like column matches the sender, across the schema.
-     *
-     * @return array<int, array{table: string, row: string}>
-     */
-    private function lookupSender(EmailAccount $account, string $senderEmail): array
-    {
-        $columns = $this->externalDb->select(
-            $account,
-            'SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS '
-                .'WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME LIKE ? LIMIT 5',
-            ['%email%'],
-        );
-
-        $results = [];
-
-        foreach ($columns as $column) {
-            $table = (string) $column->TABLE_NAME;
-            $col = (string) $column->COLUMN_NAME;
-
-            // Identifiers cannot be bound; they come from information_schema, not user input.
-            if (! preg_match('/^[A-Za-z0-9_]+$/', $table) || ! preg_match('/^[A-Za-z0-9_]+$/', $col)) {
-                continue;
-            }
-
-            $rows = $this->externalDb->select(
-                $account,
-                "SELECT * FROM `{$table}` WHERE `{$col}` = ? LIMIT 1",
-                [$senderEmail],
-            );
-
-            if ($rows !== []) {
-                $results[] = ['table' => $table, 'row' => $this->summariseRow((array) $rows[0])];
-            }
-
-            if (count($results) >= 3) {
-                break;
-            }
-        }
-
-        return $results;
-    }
-
-    /**
-     * @param  array<string, mixed>  $row
-     */
-    private function summariseRow(array $row): string
-    {
-        return collect(SensitiveData::redactRow($row))
-            ->take(6)
-            ->map(fn ($value, $key): string => "{$key}={$value}")
-            ->implode(', ');
     }
 
     /**

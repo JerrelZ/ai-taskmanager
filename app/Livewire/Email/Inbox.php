@@ -23,7 +23,6 @@ use App\Services\Email\EmailReplyDrafter;
 use App\Services\Email\EmailSender;
 use App\Services\Email\EmailThreadSummarizer;
 use App\Services\Email\ExternalProjectApi;
-use App\Services\Email\ExternalProjectDb;
 use App\Services\Email\ImapClientFactory;
 use App\Support\EmailBody;
 use App\Support\TaskActivity;
@@ -85,30 +84,17 @@ class Inbox extends Component
 
     public ?int $syncDays = 30;
 
-    // External database (read-only) settings.
-    public string $dbHost = '';
-
-    public ?int $dbPort = 3306;
-
-    public string $dbDatabase = '';
-
-    public string $dbUsername = '';
-
-    public string $dbPassword = '';
-
     // External support API settings.
     public string $apiBaseUrl = '';
 
     public string $apiToken = '';
 
     // Manual contact-link form (fallback when no suggestions match).
-    public string $manualTable = '';
-
-    public string $manualIdColumn = 'id';
+    public string $manualResource = EmailContactLink::RESOURCE_USERS;
 
     public string $manualId = '';
 
-    // Suggestions hit the external DB, so only load them when the user opens the panel.
+    // Suggestions call the support API, so only load them when the user opens the panel.
     public bool $showLinkPanel = false;
 
     // Create-ticket form.
@@ -274,9 +260,9 @@ class Inbox extends Component
     }
 
     /**
-     * Suggested external rows for the sender, only when nothing is linked yet.
+     * Suggested support-API records for the sender, only when nothing is linked yet.
      *
-     * @return array<int, array{table: string, id_column: string, id: string, label: string, preview: string}>
+     * @return array<int, array{resource: string, id: string, label: string, preview: string}>
      */
     #[Computed]
     public function contactSuggestions(): array
@@ -284,7 +270,7 @@ class Inbox extends Component
         $account = $this->account();
         $email = $this->senderEmail();
 
-        if ($account === null || $email === null || blank($account->external_db_dsn)) {
+        if ($account === null || $email === null || ! app(ExternalProjectApi::class)->configured($account)) {
             return [];
         }
 
@@ -299,7 +285,7 @@ class Inbox extends Component
         }
     }
 
-    public function linkContact(string $table, string $idColumn, string $id, string $label = ''): void
+    public function linkContact(string $resource, string $id, string $label = ''): void
     {
         abort_unless(Auth::user()->isTeam(), 403);
 
@@ -310,9 +296,9 @@ class Inbox extends Component
             return;
         }
 
-        // Identifiers are interpolated into queries elsewhere; never accept anything unsafe.
-        if (preg_match('/^[A-Za-z0-9_]+$/', $table) !== 1 || preg_match('/^[A-Za-z0-9_]+$/', $idColumn) !== 1) {
-            Flux::toast(variant: 'danger', text: __('Ongeldige tabel- of kolomnaam.'));
+        // The resource becomes part of an API path; only accept ones we serve.
+        if ($resource !== EmailContactLink::RESOURCE_USERS) {
+            Flux::toast(variant: 'danger', text: __('Onbekende resource.'));
 
             return;
         }
@@ -320,8 +306,7 @@ class Inbox extends Component
         EmailContactLink::updateOrCreate(
             ['email_account_id' => $account->id, 'email' => $email],
             [
-                'external_table' => $table,
-                'external_id_column' => $idColumn,
+                'external_resource' => $resource,
                 'external_id' => $id,
                 'label' => $label !== '' ? $label : null,
                 'linked_by' => Auth::id(),
@@ -337,15 +322,13 @@ class Inbox extends Component
         abort_unless(Auth::user()->isTeam(), 403);
 
         $validated = $this->validate([
-            'manualTable' => ['required', 'string', 'regex:/^[A-Za-z0-9_]+$/'],
-            'manualIdColumn' => ['required', 'string', 'regex:/^[A-Za-z0-9_]+$/'],
+            'manualResource' => ['required', 'string', 'in:'.EmailContactLink::RESOURCE_USERS],
             'manualId' => ['required', 'string', 'max:255'],
         ]);
 
-        $this->linkContact($validated['manualTable'], $validated['manualIdColumn'], $validated['manualId']);
+        $this->linkContact($validated['manualResource'], $validated['manualId']);
 
-        $this->manualTable = '';
-        $this->manualIdColumn = 'id';
+        $this->manualResource = EmailContactLink::RESOURCE_USERS;
         $this->manualId = '';
     }
 
@@ -888,11 +871,6 @@ class Inbox extends Component
             'username' => 'required|string',
             'accountPassword' => 'nullable|string',
             'syncDays' => 'nullable|integer|min:1|max:3650',
-            'dbHost' => 'nullable|string',
-            'dbPort' => 'nullable|integer',
-            'dbDatabase' => 'nullable|string',
-            'dbUsername' => 'nullable|string',
-            'dbPassword' => 'nullable|string',
             'apiBaseUrl' => 'nullable|url',
             'apiToken' => 'nullable|string',
         ]);
@@ -909,7 +887,6 @@ class Inbox extends Component
             'smtp_encryption' => $this->smtpEncryption,
             'username' => $validated['username'],
             'sync_days' => $validated['syncDays'],
-            'external_db_dsn' => $this->buildDsn($existing),
             'external_api_base_url' => filled($this->apiBaseUrl) ? $this->apiBaseUrl : null,
         ];
 
@@ -934,33 +911,9 @@ class Inbox extends Component
         }
 
         $this->accountPassword = '';
-        $this->dbPassword = '';
         $this->apiToken = '';
         Flux::modal('inbox-settings')->close();
         Flux::toast(variant: 'success', text: __('Inbox opgeslagen.'));
-    }
-
-    /**
-     * Build the external DB DSN from the form, preserving the stored password
-     * when the field is left blank. Returns null when no database is entered.
-     *
-     * @return array<string, mixed>|null
-     */
-    private function buildDsn(?EmailAccount $existing): ?array
-    {
-        if (blank($this->dbHost) && blank($this->dbDatabase)) {
-            return null;
-        }
-
-        $current = $existing?->external_db_dsn ?? [];
-
-        return [
-            'host' => $this->dbHost ?: '127.0.0.1',
-            'port' => $this->dbPort ?: 3306,
-            'database' => $this->dbDatabase,
-            'username' => $this->dbUsername,
-            'password' => filled($this->dbPassword) ? $this->dbPassword : ($current['password'] ?? ''),
-        ];
     }
 
     public function testConnection(ImapClientFactory $factory): void
@@ -982,18 +935,6 @@ class Inbox extends Component
             Flux::toast(variant: 'success', text: __('Verbinding gelukt.'));
         } catch (\Throwable $e) {
             Flux::toast(variant: 'danger', text: __('Verbinding mislukt: :error', ['error' => $e->getMessage()]));
-        }
-    }
-
-    public function testExternalDb(ExternalProjectDb $db): void
-    {
-        abort_unless(Auth::user()->isTeam(), 403);
-
-        try {
-            $db->select($this->transientAccount(), 'SELECT 1');
-            Flux::toast(variant: 'success', text: __('Database-verbinding gelukt.'));
-        } catch (\Throwable $e) {
-            Flux::toast(variant: 'danger', text: __('Database mislukt: :error', ['error' => $e->getMessage()]));
         }
     }
 
@@ -1026,7 +967,6 @@ class Inbox extends Component
         $existing = $this->account();
 
         $account = new EmailAccount(['project_id' => $this->project->id]);
-        $account->external_db_dsn = $this->buildDsn($existing);
         $account->external_api_base_url = $this->apiBaseUrl ?: $existing?->external_api_base_url;
         $account->external_api_token = filled($this->apiToken) ? $this->apiToken : $existing?->external_api_token;
 
@@ -1050,13 +990,6 @@ class Inbox extends Component
         $this->smtpEncryption = $account->smtp_encryption;
         $this->username = $account->username;
         $this->syncDays = $account->sync_days;
-
-        $dsn = $account->external_db_dsn ?? [];
-        $this->dbHost = $dsn['host'] ?? '';
-        $this->dbPort = $dsn['port'] ?? 3306;
-        $this->dbDatabase = $dsn['database'] ?? '';
-        $this->dbUsername = $dsn['username'] ?? '';
-        $this->dbPassword = '';
 
         $this->apiBaseUrl = $account->external_api_base_url ?? '';
         $this->apiToken = '';

@@ -4,7 +4,7 @@ namespace App\Mcp\Tools;
 
 use App\Models\EmailContactLink;
 use App\Services\Email\ContactLinkSuggester;
-use App\Services\Email\ExternalProjectDb;
+use App\Services\Email\ExternalProjectApi;
 use App\Support\ProjectResolver;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Str;
@@ -14,10 +14,10 @@ use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Find a contact in a project\'s external customer database by their email address. Scans the schema for email-like columns and returns the matching rows. Read-only.')]
+#[Description('Find a contact for a project by email address, via that project\'s read-only support API. Returns the confirmed link when one exists, otherwise the matching customer records.')]
 class LookupContactByEmailTool extends Tool
 {
-    public function handle(Request $request, ExternalProjectDb $externalDb, ContactLinkSuggester $suggester): Response|ResponseFactory
+    public function handle(Request $request, ExternalProjectApi $api, ContactLinkSuggester $suggester): Response|ResponseFactory
     {
         $validated = $request->validate([
             'project' => ['required', 'string', 'max:100'],
@@ -36,8 +36,8 @@ class LookupContactByEmailTool extends Tool
 
         $account = ProjectResolver::account($project);
 
-        if ($account === null || blank($account->external_db_dsn)) {
-            return Response::error("Project \"{$project->name}\" has no external database configured.");
+        if ($account === null || ! $api->configured($account)) {
+            return Response::error("Project \"{$project->name}\" has no support API configured.");
         }
 
         // A confirmed link is authoritative — return it instead of guessing.
@@ -53,25 +53,24 @@ class LookupContactByEmailTool extends Tool
             }
 
             return Response::structured([
-                'summary' => "Confirmed link for {$validated['email']} → {$link->external_table} ({$link->external_id_column}={$link->external_id}).",
+                'summary' => "Confirmed link for {$validated['email']} → {$link->external_resource} #{$link->external_id}.",
                 'email' => $validated['email'],
                 'confirmed_link' => true,
-                'table' => $link->external_table,
-                'id_column' => $link->external_id_column,
+                'resource' => $link->external_resource,
                 'id' => $link->external_id,
                 'label' => $resolved['label'] ?? $link->label,
-                'row' => $resolved['fields'] ?? null,
+                'record' => $resolved['fields'] ?? null,
             ]);
         }
 
         try {
-            $matches = $externalDb->findByEmail($account, $validated['email']);
+            $matches = $suggester->suggest($account, $validated['email']);
         } catch (\Throwable $e) {
             return Response::error('Lookup failed: '.Str::limit($e->getMessage(), 300));
         }
 
         $summary = $matches === []
-            ? "No confirmed link and no rows matched {$validated['email']}. Use \"query-project-database\" to search further."
+            ? "No confirmed link and no customer matched {$validated['email']}."
             : count($matches)." possible match(es) for {$validated['email']} (not yet confirmed).";
 
         return Response::structured([

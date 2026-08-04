@@ -12,7 +12,7 @@ use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Look up a customer in the project\'s external support API by email address. Returns business-meaningful user records (id, account type, status). Prefer this over raw SQL when the project has an API configured.')]
+#[Description('Look up a customer in the project\'s support API by email address. Returns business-meaningful user records (id, account type, status).')]
 class ApiUserLookupTool extends Tool
 {
     public function handle(Request $request, ExternalProjectApi $api): Response|ResponseFactory
@@ -31,7 +31,7 @@ class ApiUserLookupTool extends Tool
         $account = ProjectResolver::account($project);
 
         if ($account === null || ! $api->configured($account)) {
-            return Response::error("Project \"{$project->name}\" has no support API configured. Use \"query-project-database\" or \"lookup-contact-by-email\" instead.");
+            return Response::error("Project \"{$project->name}\" has no support API configured, so its customer data cannot be reached.");
         }
 
         try {

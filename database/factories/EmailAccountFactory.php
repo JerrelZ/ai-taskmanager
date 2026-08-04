@@ -31,7 +31,6 @@ class EmailAccountFactory extends Factory
             'smtp_encryption' => 'ssl',
             'username' => $email,
             'password' => 'app-password',
-            'external_db_dsn' => null,
             'external_api_base_url' => null,
             'external_api_token' => null,
             'is_active' => true,

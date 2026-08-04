@@ -22,16 +22,14 @@ it('encrypts the imap password at rest and decrypts via the cast', function () {
     expect(decrypt($raw, false))->toBe('super-secret');
 });
 
-it('encrypts the external db dsn as an array', function () {
-    $dsn = ['host' => 'db.example.com', 'port' => 3306, 'database' => 'shop', 'username' => 'ro', 'password' => 'pw'];
+it('encrypts the support api token', function () {
+    $account = EmailAccount::factory()->create(['external_api_token' => '1|super-secret-token']);
 
-    $account = EmailAccount::factory()->create(['external_db_dsn' => $dsn]);
+    expect($account->fresh()->external_api_token)->toBe('1|super-secret-token');
 
-    expect($account->fresh()->external_db_dsn)->toBe($dsn);
+    $raw = DB::table('email_accounts')->where('id', $account->id)->value('external_api_token');
 
-    $raw = DB::table('email_accounts')->where('id', $account->id)->value('external_db_dsn');
-
-    expect($raw)->not->toContain('db.example.com');
+    expect($raw)->not->toContain('super-secret-token');
 });
 
 it('wires up the email relationships', function () {
