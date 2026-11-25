@@ -4,7 +4,13 @@
         <div class="flex items-end justify-between gap-4">
             <div>
                 <h1 class="font-display text-3xl leading-none text-zinc-900 lg:text-4xl dark:text-zinc-50">{{ __('Alle tickets') }}</h1>
-                <flux:subheading class="mt-1.5">{{ __('Sleep kaarten tussen kolommen en projecten om prioriteit te bepalen — die volgorde geldt ook op het projectbord.') }}</flux:subheading>
+                <flux:subheading class="mt-1.5">
+                    @if ($this->isManualSort())
+                        {{ __('Sleep kaarten tussen kolommen en projecten om prioriteit te bepalen — die volgorde geldt ook op het projectbord.') }}
+                    @else
+                        {{ __('Gesorteerd op: :sort. Slepen verplaatst een kaart alleen naar een andere kolom; de handmatige volgorde blijft bewaard.', ['sort' => mb_strtolower($this->sortLabel())]) }}
+                    @endif
+                </flux:subheading>
             </div>
             <span class="font-display text-3xl leading-none text-zinc-400">{{ $this->tickets->count() }}</span>
         </div>
@@ -12,7 +18,7 @@
         {{-- Filters --}}
         <div class="flex flex-wrap items-center gap-2">
             <flux:input wire:model.live.debounce.300ms="search" size="sm" icon="magnifying-glass"
-                placeholder="{{ __('Zoeken...') }}" class="max-w-xs" clearable />
+                placeholder="{{ __('Zoek op titel of nummer...') }}" class="max-w-xs" clearable />
 
             <flux:select wire:model.live="projectFilter" size="sm" placeholder="{{ __('Project') }}" class="max-w-[170px]">
                 <flux:select.option value="">{{ __('Alle projecten') }}</flux:select.option>
@@ -35,6 +41,19 @@
                 @endforeach
             </flux:select>
 
+            @if (config('features.labels') && $this->labels->isNotEmpty())
+                <flux:select wire:model.live="labelFilter" size="sm" placeholder="{{ __('Label') }}" class="max-w-[150px]">
+                    <flux:select.option value="">{{ __('Alle labels') }}</flux:select.option>
+                    @foreach ($this->labels as $label)
+                        <flux:select.option :value="$label->id">{{ $label->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
+
+            <flux:button wire:click="toggleMine" size="sm" :variant="$this->showsOnlyMine() ? 'primary' : 'subtle'" icon="user">
+                {{ __('Mijn tickets') }}
+            </flux:button>
+
             <flux:button wire:click="$toggle('onlyStale')" size="sm" :variant="$onlyStale ? 'primary' : 'subtle'" icon="clock">
                 {{ __('Verouderd') }}
             </flux:button>
@@ -46,6 +65,10 @@
             @if ($this->hasActiveFilters())
                 <flux:button wire:click="clearFilters" size="sm" variant="ghost" icon="x-mark">{{ __('Wissen') }}</flux:button>
             @endif
+
+            <span class="flex-1"></span>
+
+            @include('livewire.partials.sort-menu')
         </div>
     </div>
 
@@ -185,7 +208,7 @@
                         <flux:badge size="sm" variant="pill">{{ $columnTasks->count() }}</flux:badge>
                         <flux:button wire:click="openNewTicket('{{ $status->value }}')" variant="subtle" size="xs"
                             icon="plus" inset="top bottom" :tooltip="__('Nieuw ticket')"
-                            class="ms-auto opacity-0 transition group-hover/col:opacity-100" />
+                            class="ms-auto transition focus-visible:opacity-100 lg:opacity-0 lg:group-hover/col:opacity-100" />
                     </div>
 
                     <div
@@ -205,7 +228,9 @@
                         @endforeach
 
                         @if ($columnTasks->isEmpty())
-                            <p class="px-2 py-6 text-center text-xs text-zinc-400 dark:text-zinc-600">{{ __('Geen tickets') }}</p>
+                            <p class="px-2 py-6 text-center text-xs text-zinc-400 dark:text-zinc-600">
+                                {{ $this->hasActiveFilters() ? __('Geen tickets met deze filters') : __('Geen tickets') }}
+                            </p>
                         @endif
                     </div>
 
@@ -232,7 +257,7 @@
                 @endforeach
             </flux:select>
 
-            <flux:input wire:model="newTicketTitle" :label="__('Titel')" />
+            <flux:input wire:model="newTicketTitle" :label="__('Titel')" autofocus />
 
             <div class="flex justify-end gap-2">
                 <flux:modal.close>

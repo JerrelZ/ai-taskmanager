@@ -99,6 +99,7 @@ function bindEditorMentions(editor, host, names) {
             });
             menu.appendChild(button);
         });
+        menu.children[active]?.scrollIntoView({ block: 'nearest' });
     };
 
     const choose = (i) => {
@@ -121,32 +122,38 @@ function bindEditorMentions(editor, host, names) {
             return;
         }
 
-        const before = editor.state.doc.textBetween(Math.max(0, from - 50), from, '\n', ' ');
-        const match = before.match(/(?:^|\s)@([\p{L}\w]*)$/u);
-        if (! match) {
+        // Text of the current block up to the caret. Inline nodes (images, hard
+        // breaks) become one placeholder character, so string offsets map 1:1
+        // onto document positions within the block.
+        const $from = editor.state.selection.$from;
+        const before = $from.parent.textBetween(0, $from.parentOffset, undefined, '\ufffc');
+        const mention = findMention(before, names);
+        if (! mention) {
             close();
 
             return;
         }
 
-        const query = match[1].toLowerCase();
-        matches = names.filter((name) => name.toLowerCase().includes(query)).slice(0, 6);
-        if (matches.length === 0) {
-            close();
-
-            return;
-        }
-
-        active = 0;
-        range = { from: from - match[1].length - 1, to: from }; // include the '@'
+        // Keep the highlighted name while the list is only being narrowed.
+        const previous = matches[active];
+        matches = mention.matches;
+        active = Math.max(0, matches.indexOf(previous));
+        range = { from: from - (before.length - mention.start), to: from }; // include the '@'
         render();
 
-        // Anchor just above the caret (the reply composer sits low in the modal).
+        // Anchor just above the caret (the reply composer sits low in the modal),
+        // or below it when there is no room above; never off the right edge.
         const caret = editor.view.coordsAtPos(from);
-        menu.style.left = caret.left + 'px';
-        menu.style.top = 'auto';
-        menu.style.bottom = (window.innerHeight - caret.top + 4) + 'px';
         menu.classList.remove('hidden');
+        menu.style.left = Math.max(8, Math.min(caret.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+
+        if (caret.top > menu.offsetHeight + 12) {
+            menu.style.top = 'auto';
+            menu.style.bottom = (window.innerHeight - caret.top + 4) + 'px';
+        } else {
+            menu.style.bottom = 'auto';
+            menu.style.top = (caret.bottom + 4) + 'px';
+        }
     };
 
     // Capture on the host (an ancestor of the editable) so we intercept the keys
@@ -254,48 +261,108 @@ const EMOJI_CATEGORIES = [
     },
 ];
 
-/**
- * Find up to six conversation members whose name matches the @mention being
- * typed at the caret. Returns an empty list when the caret isn't in a mention.
- */
-function mentionMatches(el, names) {
-    if (!el) {
-        return [];
-    }
+/** Most suggestions an @mention menu shows at once. */
+const MENTION_LIMIT = 8;
 
-    const upto = el.value.slice(0, el.selectionStart);
-    const match = upto.match(/@([\w]*)$/);
-
-    if (!match) {
-        return [];
-    }
-
-    const query = match[1].toLowerCase();
-
-    return names
-        .filter((name) => name.toLowerCase().includes(query))
-        .slice(0, 6);
+/** Lower-case and strip accents, so "jose" finds "José". */
+function foldMentionText(text) {
+    return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 }
 
 /**
- * Replace the half-typed @mention at the caret with the chosen name and keep
- * the caret positioned right after it.
+ * Locate the @mention being typed at the end of `textBeforeCaret` and rank the
+ * names that complete it. Shared by the chat textarea and the rich editor.
+ *
+ * Returns `{ start, matches }` — `start` is the index of the "@" — or null when
+ * the caret isn't in a mention. Unlike a plain /@\w*$/ match this:
+ *  - keeps matching across spaces, so "@Sanne de V" still finds "Sanne de Vries";
+ *  - handles accented names;
+ *  - ignores an "@" inside a word (e-mail addresses);
+ *  - steps aside once a first name is finished ("@Sanne " + Enter just sends).
  */
-function insertMention(el, name) {
-    if (!el) {
-        return;
+function findMention(textBeforeCaret, names) {
+    const start = textBeforeCaret.lastIndexOf('@');
+
+    if (start === -1) {
+        return null;
     }
 
-    const pos = el.selectionStart;
-    const before = el.value.slice(0, pos).replace(/@([\w]*)$/, '@' + name + ' ');
-    const after = el.value.slice(pos);
+    const previous = start > 0 ? textBeforeCaret[start - 1] : '';
 
-    el.value = before + after;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
+    if (previous !== '' && /[\p{L}\p{N}_@.]/u.test(previous)) {
+        return null;
+    }
 
-    const caret = before.length;
-    el.setSelectionRange(caret, caret);
+    const typed = textBeforeCaret.slice(start + 1);
+
+    if (typed.length > 40 || /\n/.test(typed) || /^\s/.test(typed) || /\s\s$/.test(typed)) {
+        return null;
+    }
+
+    const query = foldMentionText(typed);
+    const multiWord = /\s/.test(query);
+
+    // "@Sanne " — a finished single word: treat it as done rather than keep
+    // suggesting, so Enter sends the message instead of picking a name.
+    if (multiWord && /^\S+\s$/.test(query)) {
+        return null;
+    }
+
+    const ranked = [];
+
+    names.forEach((name) => {
+        const folded = foldMentionText(name);
+        let rank = null;
+
+        if (folded.startsWith(query)) {
+            rank = 0;
+        } else if (folded.split(/\s+/).some((word, i, words) => words.slice(i).join(' ').startsWith(query))) {
+            rank = 1;
+        } else if (! multiWord && folded.includes(query)) {
+            rank = 2;
+        }
+
+        if (rank !== null) {
+            ranked.push({ name, rank });
+        }
+    });
+
+    if (ranked.length === 0) {
+        return null;
+    }
+
+    // Already fully typed and unambiguous: nothing left to suggest.
+    if (ranked.length === 1 && foldMentionText(ranked[0].name) === query) {
+        return null;
+    }
+
+    ranked.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
+
+    return { start, matches: ranked.slice(0, MENTION_LIMIT).map((entry) => entry.name) };
+}
+
+/**
+ * Replace the text between `start` and the caret of a textarea with `text` and
+ * leave the caret right behind it. Goes through the browser's own editing
+ * command so undo keeps working and mobile keyboards (which hold the half-typed
+ * word in a composition buffer) don't re-insert that word after the name.
+ */
+function replaceBeforeCaret(el, start, text) {
     el.focus();
+    el.setSelectionRange(start, el.selectionStart);
+
+    let inserted = false;
+
+    try {
+        inserted = document.execCommand('insertText', false, text);
+    } catch (error) {
+        inserted = false;
+    }
+
+    if (! inserted) {
+        el.setRangeText(text, el.selectionStart, el.selectionEnd, 'end');
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
 }
 
 /**
@@ -392,6 +459,7 @@ document.addEventListener('alpine:init', () => {
         open: false,
         matches: [],
         active: 0,
+        mentionStart: null,
         cmdOpen: false,
         cmdMatches: [],
         cmdActive: 0,
@@ -531,9 +599,48 @@ document.addEventListener('alpine:init', () => {
         },
 
         detectMention() {
-            this.matches = mentionMatches(this.input, this.names);
-            this.active = 0;
-            this.open = this.matches.length > 0;
+            const el = this.input;
+            const mention = el && el.selectionStart === el.selectionEnd
+                ? findMention(el.value.slice(0, el.selectionStart), this.names)
+                : null;
+
+            if (! mention) {
+                this.closeMentions();
+
+                return;
+            }
+
+            // Keep the highlighted name while the list is only being narrowed.
+            const previous = this.matches[this.active];
+
+            this.matches = mention.matches;
+            this.mentionStart = mention.start;
+            this.active = Math.max(0, this.matches.indexOf(previous));
+            this.open = true;
+            this.emojiOpen = false;
+        },
+
+        closeMentions() {
+            this.open = false;
+            this.matches = [];
+            this.mentionStart = null;
+        },
+
+        // The caret moved without typing (click, arrow keys): the mention under
+        // it may have changed, or there may be none any more.
+        onCaretMove(event) {
+            if (event.type === 'keyup' && ! ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+                return;
+            }
+
+            this.detectMention();
+        },
+
+        moveActive(step) {
+            this.active = (this.active + step + this.matches.length) % this.matches.length;
+            this.$nextTick(() => {
+                this.$refs.mentionMenu?.querySelectorAll('button')[this.active]?.scrollIntoView({ block: 'nearest' });
+            });
         },
 
         onKeydown(event) {
@@ -559,30 +666,33 @@ document.addEventListener('alpine:init', () => {
                 }
             }
 
-            if (this.open) {
+            if (this.open && this.matches.length > 0) {
                 if (event.key === 'ArrowDown') {
                     event.preventDefault();
-                    this.active = (this.active + 1) % this.matches.length;
+                    this.moveActive(1);
                     return;
                 }
                 if (event.key === 'ArrowUp') {
                     event.preventDefault();
-                    this.active = (this.active - 1 + this.matches.length) % this.matches.length;
+                    this.moveActive(-1);
                     return;
                 }
-                if (event.key === 'Enter') {
+                if ((event.key === 'Enter' || event.key === 'Tab') && !event.isComposing) {
                     event.preventDefault();
                     this.choose(this.matches[this.active]);
                     return;
                 }
                 if (event.key === 'Escape') {
-                    this.open = false;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.closeMentions();
                     return;
                 }
             }
 
             // Enter sends on desktop; on touch keyboards Enter adds a newline.
-            if (event.key === 'Enter' && !event.shiftKey && this.sendsOnEnter()) {
+            // Never while an IME is still composing a character.
+            if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && this.sendsOnEnter()) {
                 event.preventDefault();
                 this.$refs.form.requestSubmit();
             }
@@ -593,15 +703,23 @@ document.addEventListener('alpine:init', () => {
         },
 
         choose(name) {
-            insertMention(this.input, name);
-            this.open = false;
+            const el = this.input;
+
+            if (!el || !name || this.mentionStart === null) {
+                this.closeMentions();
+
+                return;
+            }
+
+            replaceBeforeCaret(el, this.mentionStart, '@' + name + ' ');
+            this.closeMentions();
             this.autosize();
         },
 
         toggleEmoji() {
             this.emojiOpen = !this.emojiOpen;
             if (this.emojiOpen) {
-                this.open = false;
+                this.closeMentions();
             }
         },
 
@@ -626,7 +744,7 @@ document.addEventListener('alpine:init', () => {
         // Called after a message is sent: drop the saved draft, clear the grown
         // height and refocus.
         reset() {
-            this.open = false;
+            this.closeMentions();
             this.cmdOpen = false;
             this.emojiOpen = false;
             this.clearDraft();

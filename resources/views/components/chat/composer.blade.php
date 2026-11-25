@@ -125,17 +125,33 @@
                 wire:model="body"
                 x-on:input="onInput()"
                 x-on:keydown="onKeydown($event)"
+                x-on:keyup="onCaretMove($event)"
+                x-on:click="onCaretMove($event)"
+                x-on:blur="closeMentions()"
                 x-on:paste="onPaste($event)"
+                role="combobox"
+                aria-autocomplete="list"
+                :aria-expanded="open"
                 rows="1"
                 placeholder="{{ $placeholder ?? __('Schrijf een bericht...') }}"
                 class="max-h-40 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-base text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-0 dark:text-zinc-100"
             ></textarea>
 
             {{-- Mention autocomplete --}}
-            <div x-show="open" x-cloak class="absolute bottom-full start-0 z-20 mb-2 max-h-48 w-64 overflow-y-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+            <div x-show="open" x-cloak x-ref="mentionMenu" role="listbox" aria-label="{{ __('Personen') }}"
+                class="absolute bottom-full start-0 z-20 mb-2 max-h-56 w-72 max-w-[85vw] overflow-y-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
                 <template x-for="(name, i) in matches" :key="name">
-                    <button type="button" x-on:mousedown.prevent="choose(name)" :class="i === active ? 'bg-brand-50 dark:bg-brand-950/40' : ''" class="block w-full px-3 py-1.5 text-start text-sm text-zinc-700 dark:text-zinc-200">@<span x-text="name"></span></button>
+                    <button type="button" role="option" :aria-selected="i === active"
+                        x-on:mousedown.prevent="choose(name)" x-on:mousemove="active = i"
+                        :class="i === active ? 'bg-brand-50 dark:bg-brand-950/40' : ''"
+                        class="flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-zinc-700 dark:text-zinc-200">
+                        <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-[0.65rem] font-semibold uppercase text-zinc-600 dark:bg-zinc-700 dark:text-zinc-200" x-text="name.trim().charAt(0)"></span>
+                        <span class="truncate" x-text="name"></span>
+                    </button>
                 </template>
+                <div class="hidden border-t border-zinc-100 px-3 pt-1.5 pb-1 text-[0.7rem] text-zinc-400 pointer-fine:block dark:border-zinc-700">
+                    {{ __('↑↓ kiezen · Enter of Tab invoegen · Esc sluiten') }}
+                </div>
             </div>
 
             {{-- Slash-command autocomplete --}}

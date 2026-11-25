@@ -10,6 +10,7 @@ use App\Events\TaskBoardUpdated;
 use App\Livewire\Concerns\CopiesTaskPrompt;
 use App\Livewire\Concerns\LimitsBoardColumns;
 use App\Livewire\Concerns\PollsLiveBoard;
+use App\Livewire\Concerns\SortsBoardTickets;
 use App\Models\Client;
 use App\Models\Label;
 use App\Models\Project;
@@ -32,6 +33,7 @@ class Board extends Component
     use CopiesTaskPrompt;
     use LimitsBoardColumns;
     use PollsLiveBoard;
+    use SortsBoardTickets;
 
     public Project $project;
 
@@ -208,16 +210,18 @@ class Board extends Component
     #[Computed]
     public function tasks(): Collection
     {
-        return $this->project->rootTasks()
+        $tasks = $this->project->rootTasks()
             ->with(['project', 'assignee', 'labels', 'subtasks'])
             ->withCount('comments')
             ->when($this->assigneeFilter, fn ($q) => $q->where('assignee_id', $this->assigneeFilter))
             ->when($this->priorityFilter, fn ($q) => $q->where('priority', $this->priorityFilter))
             ->when($this->labelFilter, fn ($q) => $q->whereHas('labels', fn ($l) => $l->whereKey($this->labelFilter)))
-            ->when($this->search !== '', fn ($q) => $q->where('title', 'like', '%'.$this->search.'%'))
+            ->when($this->search !== '', fn ($q) => $q->search($this->search))
             ->orderBy('position')
             ->orderBy('id')
             ->get();
+
+        return $this->applyTicketSort($tasks);
     }
 
     /**
@@ -304,6 +308,20 @@ class Board extends Component
         $position = max(0, min($position, count($displayed)));
         $anchorAbove = $position > 0 ? $displayed[$position - 1] : null;
         $anchorBelow = $position < count($displayed) ? $displayed[$position] : null;
+
+        // A derived order (newest first, by deadline, ...) can't be re-ranked by
+        // hand: a drag then only moves the task to another status column.
+        if (! $this->isManualSort()) {
+            if ($task->status === $newStatus) {
+                Flux::toast(text: __('Zet de sortering op "Handmatig" om de volgorde te verslepen.'));
+            } else {
+                $this->setStatus($task->id, $newStatus->value);
+            }
+
+            unset($this->tasks, $this->columns);
+
+            return;
+        }
 
         if ($task->status !== $newStatus) {
             TaskActivity::log($task, 'status', ['from' => $task->status->label(), 'to' => $newStatus->label()]);

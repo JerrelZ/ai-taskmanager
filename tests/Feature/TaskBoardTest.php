@@ -236,3 +236,28 @@ test('creating a ticket survives a failing broadcaster (Reverb down)', function 
 
     expect(Task::where('title', 'Ondanks broadcast')->exists())->toBeTrue();
 });
+
+test('the project board can be sorted by creation date and shows that date on the card', function () {
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Oud ticket', 'position' => 0, 'created_at' => now()->subDays(3)]);
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Nieuw ticket', 'position' => 1, 'created_at' => now()->subDay()]);
+
+    Livewire::test(Board::class, ['project' => $this->project])
+        ->assertSeeInOrder(['Oud ticket', 'Nieuw ticket'])
+        ->assertDontSee('Aangemaakt op')
+        ->set('sortBy', 'created_desc')
+        ->assertSeeInOrder(['Nieuw ticket', 'Oud ticket'])
+        ->assertSee('Aangemaakt op');
+});
+
+test('dragging within a column on a sorted project board keeps the manual order', function () {
+    $first = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['position' => 0]);
+    $second = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['position' => 1]);
+
+    Livewire::test(Board::class, ['project' => $this->project])
+        ->set('sortBy', 'created_desc')
+        ->call('moveTask', $second->id, 0, TaskStatus::Todo->value)
+        ->call('moveTask', $first->id, 0, TaskStatus::Done->value);
+
+    expect($second->fresh()->position)->toBe(1)
+        ->and($first->fresh()->status)->toBe(TaskStatus::Done);
+});

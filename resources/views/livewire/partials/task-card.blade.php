@@ -14,7 +14,8 @@
                                + selected ring).
 
     The host component must expose: openTask, setStatus, setPriority, setDue,
-    toggleLabel, setAssignee and copyPrompt.
+    toggleLabel, setAssignee and copyPrompt, and use the SortsBoardTickets
+    concern (the card shows the date the board is sorted on).
 --}}
 @php
     $showProject ??= false;
@@ -111,6 +112,8 @@
         @include('livewire.partials.due-picker', ['task' => $task])
 
         @include('livewire.partials.label-picker', ['task' => $task])
+
+        @include('livewire.partials.task-date-hint', ['task' => $task])
 
         @if ($progress['total'] > 0)
             <span class="flex items-center gap-1 text-xs">

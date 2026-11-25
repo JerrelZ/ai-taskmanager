@@ -354,3 +354,85 @@ test('creating a ticket from the board requires a title', function () {
         ->call('createTicket')
         ->assertHasErrors('newTicketTitle');
 });
+
+test('tickets can be sorted by creation date, newest or oldest first', function () {
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Oud ticket', 'position' => 0, 'created_at' => now()->subDays(3)]);
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Nieuw ticket', 'position' => 1, 'created_at' => now()->subDay()]);
+
+    Livewire::test(Index::class)
+        ->assertSeeInOrder(['Oud ticket', 'Nieuw ticket'])
+        ->set('sortBy', 'created_desc')
+        ->assertSeeInOrder(['Nieuw ticket', 'Oud ticket'])
+        ->set('sortBy', 'created_asc')
+        ->assertSeeInOrder(['Oud ticket', 'Nieuw ticket']);
+});
+
+test('tickets can be sorted by priority and by deadline, with undated tickets last', function () {
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Laag zonder deadline', 'position' => 0, 'priority' => TaskPriority::Low, 'due_date' => null]);
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Urgent later', 'position' => 1, 'priority' => TaskPriority::Urgent, 'due_date' => now()->addWeek()]);
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Medium morgen', 'position' => 2, 'priority' => TaskPriority::Medium, 'due_date' => now()->addDay()]);
+
+    Livewire::test(Index::class)
+        ->set('sortBy', 'priority')
+        ->assertSeeInOrder(['Urgent later', 'Medium morgen', 'Laag zonder deadline'])
+        ->set('sortBy', 'due_asc')
+        ->assertSeeInOrder(['Medium morgen', 'Urgent later', 'Laag zonder deadline']);
+});
+
+test('an unknown sort mode falls back to the manual order', function () {
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Eerste', 'position' => 0, 'created_at' => now()->subDays(3)]);
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Tweede', 'position' => 1]);
+
+    Livewire::test(Index::class)
+        ->set('sortBy', 'bestaat-niet')
+        ->assertSeeInOrder(['Eerste', 'Tweede']);
+});
+
+test('dragging while sorted moves a ticket to another column but never re-ranks it', function () {
+    $first = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['position' => 0]);
+    $second = Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['position' => 1]);
+
+    $component = Livewire::test(Index::class)->set('sortBy', 'created_desc');
+
+    // Same column: the hand-dragged order is left alone.
+    $component->call('moveTask', $second->id, 0, TaskStatus::Todo->value);
+
+    expect($first->fresh()->position)->toBe(0)
+        ->and($second->fresh()->position)->toBe(1);
+
+    // Other column: the status changes.
+    $component->call('moveTask', $second->id, 0, TaskStatus::InProgress->value);
+
+    expect($second->fresh()->status)->toBe(TaskStatus::InProgress)
+        ->and($first->fresh()->position)->toBe(0);
+});
+
+test('the search finds a ticket by its number or full identifier', function () {
+    $project = Project::factory()->create(['key' => 'WEB']);
+    $match = Task::factory()->for($project)->status(TaskStatus::Todo)->create(['title' => 'Gezocht ticket']);
+    Task::factory()->for($project)->status(TaskStatus::Todo)->create(['title' => 'Ander ticket']);
+
+    Livewire::test(Index::class)
+        ->set('search', 'WEB-'.$match->number)
+        ->assertSee('Gezocht ticket')
+        ->assertDontSee('Ander ticket')
+        ->set('search', '#'.$match->number)
+        ->assertSee('Gezocht ticket')
+        ->set('search', 'ander')
+        ->assertSee('Ander ticket')
+        ->assertDontSee('Gezocht ticket');
+});
+
+test('the my-tickets toggle filters on the current user and back', function () {
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Van mij', 'assignee_id' => $this->user->id]);
+    Task::factory()->for($this->project)->status(TaskStatus::Todo)->create(['title' => 'Van niemand', 'assignee_id' => null]);
+
+    Livewire::test(Index::class)
+        ->call('toggleMine')
+        ->assertSet('assigneeFilter', $this->user->id)
+        ->assertSee('Van mij')
+        ->assertDontSee('Van niemand')
+        ->call('toggleMine')
+        ->assertSet('assigneeFilter', null)
+        ->assertSee('Van niemand');
+});

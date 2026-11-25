@@ -41,6 +41,10 @@
     @endif
 
     <div class="hidden shrink-0 sm:block">
+        @include('livewire.partials.task-date-hint', ['task' => $task])
+    </div>
+
+    <div class="hidden shrink-0 sm:block">
         @include('livewire.partials.label-picker', ['task' => $task])
     </div>
 

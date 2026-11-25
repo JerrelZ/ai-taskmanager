@@ -221,6 +221,33 @@ class Task extends Model
     }
 
     /**
+     * Scope to tickets matching a free-text search: part of the title, a bare
+     * ticket number ("12" / "#12") or a full identifier ("WEB-12").
+     *
+     * @param  Builder<Task>  $query
+     */
+    public function scopeSearch(Builder $query, string $term): void
+    {
+        $term = trim($term);
+
+        if ($term === '') {
+            return;
+        }
+
+        $query->where(function (Builder $match) use ($term): void {
+            $match->where('title', 'like', '%'.$term.'%');
+
+            if (preg_match('/^#?(\d+)$/', $term, $number)) {
+                $match->orWhere('number', (int) $number[1]);
+            } elseif (preg_match('/^([A-Za-z0-9]+)-(\d+)$/', $term, $identifier)) {
+                $match->orWhere(fn (Builder $exact) => $exact
+                    ->where('number', (int) $identifier[2])
+                    ->whereHas('project', fn (Builder $project) => $project->where('key', strtoupper($identifier[1]))));
+            }
+        });
+    }
+
+    /**
      * Scope to root tasks (not subtasks).
      *
      * @param  Builder<Task>  $query

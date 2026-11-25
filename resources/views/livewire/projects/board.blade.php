@@ -20,7 +20,7 @@
         {{-- Filters --}}
         <div @class(['flex flex-wrap items-center gap-2', 'hidden' => $boardView === 'chat'])>
             <flux:input wire:model.live.debounce.300ms="search" size="sm" icon="magnifying-glass"
-                placeholder="{{ __('Zoeken...') }}" class="max-w-xs" clearable />
+                placeholder="{{ __('Zoek op titel of nummer...') }}" class="max-w-xs" clearable />
 
             <flux:select wire:model.live="assigneeFilter" size="sm" placeholder="{{ __('Toegewezen aan') }}" class="max-w-[180px]">
                 <flux:select.option value="">{{ __('Iedereen') }}</flux:select.option>
@@ -48,6 +48,10 @@
             @if ($this->hasActiveFilters())
                 <flux:button wire:click="clearFilters" size="sm" variant="subtle" icon="x-mark">{{ __('Wissen') }}</flux:button>
             @endif
+
+            <span class="flex-1"></span>
+
+            @include('livewire.partials.sort-menu')
         </div>
     </div>
 
@@ -69,7 +73,7 @@
                             <flux:badge size="sm" variant="pill">{{ $tasks->count() }}</flux:badge>
                             <flux:button wire:click="openNewTicket('{{ $status->value }}')"
                                 variant="subtle" size="xs" icon="plus" inset="top bottom" :tooltip="__('Nieuw ticket')"
-                                class="ms-auto opacity-0 transition group-hover/col:opacity-100" />
+                                class="ms-auto transition focus-visible:opacity-100 lg:opacity-0 lg:group-hover/col:opacity-100" />
                         </div>
 
                         <div
@@ -122,7 +126,7 @@
                             <flux:badge size="sm" variant="pill">{{ $tasks->count() }}</flux:badge>
                             <flux:button wire:click="openNewTicket('{{ $status->value }}')"
                                 variant="subtle" size="xs" icon="plus" inset="top bottom" :tooltip="__('Nieuw ticket')"
-                                class="ms-auto opacity-0 transition group-hover/col:opacity-100" />
+                                class="ms-auto transition focus-visible:opacity-100 lg:opacity-0 lg:group-hover/col:opacity-100" />
                         </div>
 
                         <div
@@ -158,7 +162,7 @@
     <flux:modal name="new-ticket" class="md:w-[30rem]">
         <form wire:submit="createTicket" class="flex flex-col gap-4">
             <flux:heading size="lg">{{ __('Nieuw ticket') }}</flux:heading>
-            <flux:input wire:model="newTicketTitle" :label="__('Titel')" />
+            <flux:input wire:model="newTicketTitle" :label="__('Titel')" autofocus />
             <div class="flex justify-end gap-2">
                 <flux:modal.close>
                     <flux:button variant="ghost">{{ __('Annuleren') }}</flux:button>

@@ -8,6 +8,7 @@ use App\Events\TaskBoardUpdated;
 use App\Livewire\Concerns\CopiesTaskPrompt;
 use App\Livewire\Concerns\LimitsBoardColumns;
 use App\Livewire\Concerns\PollsLiveBoard;
+use App\Livewire\Concerns\SortsBoardTickets;
 use App\Models\Label;
 use App\Models\Project;
 use App\Models\Task;
@@ -30,6 +31,7 @@ class Index extends Component
     use CopiesTaskPrompt;
     use LimitsBoardColumns;
     use PollsLiveBoard;
+    use SortsBoardTickets;
 
     #[Url]
     public string $search = '';
@@ -69,7 +71,8 @@ class Index extends Component
 
     /**
      * Filtered root tickets across all visible projects, ordered by their
-     * workspace-global position within each status column.
+     * workspace-global position within each status column (or by the chosen
+     * sort mode).
      *
      * @return Collection<int, Task>
      */
@@ -88,7 +91,7 @@ class Index extends Component
             ->when($this->assigneeFilter, fn ($q) => $q->where('assignee_id', $this->assigneeFilter))
             ->when($this->priorityFilter, fn ($q) => $q->where('priority', $this->priorityFilter))
             ->when($this->labelFilter, fn ($q) => $q->whereHas('labels', fn ($l) => $l->whereKey($this->labelFilter)))
-            ->when($this->search !== '', fn ($q) => $q->where('title', 'like', '%'.$this->search.'%'))
+            ->when($this->search !== '', fn ($q) => $q->search($this->search))
             ->orderBy('position')
             ->orderBy('id')
             ->get();
@@ -97,7 +100,7 @@ class Index extends Component
             $tickets = $tickets->filter->isStale()->values();
         }
 
-        return $tickets;
+        return $this->applyTicketSort($tickets);
     }
 
     /**
@@ -207,6 +210,20 @@ class Index extends Component
     }
 
     /**
+     * Quick filter: narrow the board to the current user's own tickets, or
+     * back to everyone's when it is already on.
+     */
+    public function toggleMine(): void
+    {
+        $this->assigneeFilter = $this->showsOnlyMine() ? null : Auth::user()->id;
+    }
+
+    public function showsOnlyMine(): bool
+    {
+        return $this->assigneeFilter === Auth::user()->id;
+    }
+
+    /**
      * Drag-and-drop across the all-tickets board: move a ticket to a status
      * column and set its workspace-global priority within that column.
      *
@@ -240,6 +257,20 @@ class Index extends Component
         $position = max(0, min($position, count($displayed)));
         $anchorAbove = $position > 0 ? $displayed[$position - 1] : null;
         $anchorBelow = $position < count($displayed) ? $displayed[$position] : null;
+
+        // A derived order (newest first, by deadline, ...) can't be re-ranked by
+        // hand: a drag then only moves the ticket to another status column.
+        if (! $this->isManualSort()) {
+            if ($task->status === $newStatus) {
+                Flux::toast(text: __('Zet de sortering op "Handmatig" om de volgorde te verslepen.'));
+            } else {
+                $this->setStatus($task->id, $newStatus->value);
+            }
+
+            unset($this->tickets, $this->columns, $this->nowTask);
+
+            return;
+        }
 
         if ($task->status !== $newStatus) {
             TaskActivity::log($task, 'status', ['from' => $task->status->label(), 'to' => $newStatus->label()]);
